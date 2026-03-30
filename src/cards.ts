@@ -264,3 +264,79 @@ export async function buildLeaderboardCardWithAvatars(data: {
 
   return Buffer.from(await canvas.encode("png"));
 }
+
+export async function buildHelperSnapshotCard(data: {
+  helperTag: string;
+  avatarUrl: string;
+  total: number;
+  average: number;
+  fiveStarRate: number;
+  topGame: string;
+  breakdown: Array<{ gameKey: string; total: number; average: number; fiveStarRate: number }>;
+  recent: Array<{ rating: number; message: string; createdAt?: string | null }>;
+}) {
+  registerCanvasFonts();
+  const canvas = createCanvas(1180, 720);
+  const ctx = canvas.getContext("2d");
+  drawBackground(ctx, canvas.width, canvas.height, ["#09111f", "#1d355d"]);
+  fillRoundedRect(ctx, 28, 28, 1124, 664, 30, "#07101ccc");
+
+  ctx.fillStyle = "#d7e8ff";
+  ctx.font = '700 22px "Space Grotesk"';
+  ctx.fillText("HELPER SNAPSHOT", 54, 64);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = '700 46px "Space Grotesk"';
+  ctx.fillText(data.helperTag, 54, 112);
+
+  await drawAvatar(ctx, data.avatarUrl, 60, 146, 124, "#69d6ff");
+  drawMetricCard(ctx, 224, 148, 190, 104, "Total vouches", String(data.total));
+  drawMetricCard(ctx, 434, 148, 190, 104, "Average", data.average.toFixed(2), "#7cf0b5");
+  drawMetricCard(ctx, 644, 148, 214, 104, "Five-star rate", `${data.fiveStarRate.toFixed(1)}%`, "#ff9d76");
+  drawMetricCard(ctx, 878, 148, 228, 104, "Top game", data.topGame, "#f6cf69");
+
+  fillRoundedRect(ctx, 54, 286, 504, 360, 24, "#0d1829");
+  ctx.fillStyle = "#7ce7ff";
+  ctx.font = '700 22px "Space Grotesk"';
+  ctx.fillText("Game Breakdown", 80, 324);
+  const breakdown = data.breakdown.length > 0
+    ? data.breakdown.slice(0, 5)
+    : [{ gameKey: "N/A", total: 0, average: 0, fiveStarRate: 0 }];
+  breakdown.forEach((entry, index) => {
+    const y = 366 + index * 54;
+    fillRoundedRect(ctx, 76, y, 460, 42, 16, "#13223c");
+    ctx.fillStyle = "#f5f7ff";
+    ctx.font = '700 18px "Space Grotesk"';
+    ctx.fillText(entry.gameKey, 94, y + 27);
+    ctx.fillStyle = "#9fbce4";
+    ctx.font = '400 16px "Inter"';
+    ctx.fillText(`${entry.total} vouches | avg ${entry.average.toFixed(2)} | ${entry.fiveStarRate.toFixed(1)}% 5-star`, 180, y + 27);
+  });
+
+  fillRoundedRect(ctx, 592, 286, 534, 360, 24, "#0d1829");
+  ctx.fillStyle = "#7ce7ff";
+  ctx.font = '700 22px "Space Grotesk"';
+  ctx.fillText("Recent Vouches", 618, 324);
+  const recent = data.recent.length > 0
+    ? data.recent.slice(0, 3)
+    : [{ rating: 0, message: "No recent vouches yet.", createdAt: null }];
+  recent.forEach((entry, index) => {
+    const y = 356 + index * 96;
+    fillRoundedRect(ctx, 614, y, 488, 78, 18, "#13223c");
+    ctx.fillStyle = entry.rating >= 5 ? "#ffd166" : "#f5f7ff";
+    ctx.font = '700 18px "Space Grotesk"';
+    ctx.fillText(entry.rating > 0 ? `${entry.rating}/5` : "No data", 636, y + 28);
+    ctx.fillStyle = "#8ea7cf";
+    ctx.font = '400 15px "Inter"';
+    if (entry.createdAt) {
+      const parsed = Date.parse(entry.createdAt);
+      const stamp = Number.isNaN(parsed) ? "unknown time" : new Date(parsed).toLocaleDateString("en-US");
+      ctx.fillText(stamp, 694, y + 28);
+    }
+    ctx.fillStyle = "#f5f7ff";
+    ctx.font = '400 18px "Inter"';
+    const snippet = entry.message.length > 105 ? `${entry.message.slice(0, 102)}...` : entry.message;
+    wrapText(ctx, snippet, 636, y + 56, 442, 22, 2);
+  });
+
+  return Buffer.from(await canvas.encode("png"));
+}

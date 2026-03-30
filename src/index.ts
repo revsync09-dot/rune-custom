@@ -63,7 +63,7 @@ import {
   ticketCategoryId,
   ticketFromDbRow,
 } from "./helpers.js";
-import { buildHelperProfileCard, buildLeaderboardCardWithAvatars, buildVouchCard } from "./cards.js";
+import { buildHelperProfileCard, buildHelperSnapshotCard, buildLeaderboardCardWithAvatars, buildVouchCard } from "./cards.js";
 import { buildCarryPanel, buildHighlightMessage, buildNotice, buildSupportedGamesText, buildTicketMessage, buildVouchPanel } from "./ui.js";
 import type { CarryTicketRow, GameKey, TicketViewModel } from "./types.js";
 
@@ -114,49 +114,35 @@ function formatVouchTime(value: string | null | undefined) {
   return `<t:${Math.floor(parsed / 1000)}:R>`;
 }
 
-async function buildHelperSnapshotText(guildId: string, helperId: string) {
+async function getHelperSnapshotData(guildId: string, helperId: string) {
   const [stats, breakdown, recent] = await Promise.all([
     db.getHelperStats(guildId, helperId).catch(() => ({ total: 0, average: 0, fiveStarRate: 0, topGame: "N/A" })),
     db.getHelperGameBreakdown(guildId, helperId).catch(() => []),
     db.getRecentVouches(guildId, 3, helperId).catch(() => []),
   ]);
-
-  const breakdownText =
-    breakdown.length > 0
-      ? breakdown
-          .slice(0, 3)
-          .map((entry) => `- **${entry.gameKey}**: ${entry.total} vouches | avg ${entry.average.toFixed(2)} | ${entry.fiveStarRate.toFixed(1)}% 5-star`)
-          .join("\n")
-      : "- No game data yet";
-
-  const recentText =
-    recent.length > 0
-      ? recent
-          .map((row, index) => {
-            const snippet = row.message.length > 80 ? `${row.message.slice(0, 77)}...` : row.message;
-            return `${index + 1}. **${row.rating}/5** ${formatVouchTime(row.created_at)}\n${snippet}`;
-          })
-          .join("\n\n")
-      : "No recent vouches yet.";
-
-  return [
-    `**Overall**`,
-    `- Total vouches: **${stats.total}**`,
-    `- Average rating: **${stats.average.toFixed(2)}**`,
-    `- Five-star rate: **${stats.fiveStarRate.toFixed(1)}%**`,
-    `- Top game: **${stats.topGame}**`,
-    "",
-    `**Game Breakdown**`,
-    breakdownText,
-    "",
-    `**Recent Vouches**`,
-    recentText,
-  ].join("\n");
+  const helperUser = await client.users.fetch(helperId).catch(() => null);
+  return {
+    helperTag: helperUser?.username ?? `Unknown (${helperId})`,
+    avatarUrl: helperUser?.displayAvatarURL({ extension: "png", size: 256 }) ?? "",
+    total: stats.total,
+    average: stats.average,
+    fiveStarRate: stats.fiveStarRate,
+    topGame: stats.topGame,
+    breakdown,
+    recent: recent.map((row) => ({
+      rating: row.rating,
+      message: row.message,
+      createdAt: row.created_at,
+    })),
+  };
 }
 
 async function sendHelperSnapshot(channel: TextChannel, guildId: string, helperId: string) {
-  const snapshot = await buildHelperSnapshotText(guildId, helperId);
-  await sendNotice(channel, "Helper Snapshot", snapshot, 0x5865f2).catch(() => undefined);
+  const snapshot = await getHelperSnapshotData(guildId, helperId);
+  const imageBuffer = await buildHelperSnapshotCard(snapshot);
+  await sendNotice(channel, "Helper Snapshot", `Current helper snapshot for <@${helperId}>.`, 0x5865f2, {
+    files: [new AttachmentBuilder(imageBuffer, { name: `helper-snapshot-${helperId}.png` })],
+  }).catch(() => undefined);
 }
 
 async function replyNotice(interaction: ChatInputCommandInteraction | StringSelectMenuInteraction | Interaction<CacheType>, title: string, description: string, accentColor = 0x5865f2, ephemeral = true) {
@@ -568,8 +554,12 @@ async function handleVouchModal(interaction: Interaction<CacheType>) {
   let reply = `Vouch submitted in ${targetChannel.toString()}.`;
   if (inTicket) reply += " This channel will be deleted in 5 seconds.";
   else if (matchedPendingTicket?.ticketNum !== undefined) reply += ` Ticket #${String(matchedPendingTicket.ticketNum).padStart(4, "0")} has been marked as vouched.`;
-  const postVouchSnapshot = await buildHelperSnapshotText(interaction.guild.id, helperId);
-  await interaction.editReply(noticePayload("Vouch Submitted", `${reply}\n\n${postVouchSnapshot}`, 0x4ade80) as any);
+  const postVouchSnapshot = await getHelperSnapshotData(interaction.guild.id, helperId);
+  const postVouchImage = await buildHelperSnapshotCard(postVouchSnapshot);
+  await interaction.editReply({
+    ...(noticePayload("Vouch Submitted", reply, 0x4ade80) as any),
+    files: [new AttachmentBuilder(postVouchImage, { name: `post-vouch-snapshot-${helperId}.png` })],
+  });
   await sendLog(interaction.guild, `Vouch submitted by <@${interaction.user.id}> for <@${helperId}> (${rating}/5)`);
   if (inTicket && interaction.channel instanceof TextChannel) {
     setTimeout(() => {
