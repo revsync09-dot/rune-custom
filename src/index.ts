@@ -534,13 +534,9 @@ async function handleVouchModal(interaction: Interaction<CacheType>) {
   }
 
   const inTicket = interaction.channel instanceof TextChannel && Boolean(extractTicketMeta(interaction.channel.topic ?? "").ownerId);
-  let reply = `Vouch submitted in ${targetChannel.toString()}.`;
-  if (inTicket) reply += " This channel will be deleted in 5 seconds.";
-  else if (matchedPendingTicket?.ticketNum !== undefined) reply += ` Ticket #${String(matchedPendingTicket.ticketNum).padStart(4, "0")} has been marked as vouched.`;
   const postVouchSnapshot = await getHelperSnapshotData(interaction.guild.id, helperId);
   const postVouchImage = await buildHelperSnapshotCard(postVouchSnapshot);
   await interaction.editReply({
-    ...(noticePayload("Vouch Submitted", reply, 0x4ade80) as any),
     files: [new AttachmentBuilder(postVouchImage, { name: `post-vouch-snapshot-${helperId}.png` })],
   });
   await sendLog(interaction.guild, `Vouch submitted by <@${interaction.user.id}> for <@${helperId}> (${rating}/5)`);
