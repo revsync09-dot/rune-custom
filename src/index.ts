@@ -29,6 +29,7 @@ import {
   CLAIM_RESPONSE_REMINDER_MINUTES,
   DAILY_MESSAGE_TARGET,
   RUNE_GUILD_ID,
+  RUNE_MENU_INFO_CHANNEL_ID,
   TICKET_CLAIM,
   TICKET_CLOSE_BTN,
   TICKET_UNCLAIM,
@@ -63,7 +64,7 @@ import {
   ticketFromDbRow,
 } from "./helpers.js";
 import { buildHelperProfileCard, buildLeaderboardCardWithAvatars, buildVouchCard } from "./cards.js";
-import { buildCarryPanel, buildHighlightMessage, buildSupportedGamesText, buildTicketMessage, buildVouchPanel } from "./ui.js";
+import { buildCarryPanel, buildHighlightMessage, buildNotice, buildSupportedGamesText, buildTicketMessage, buildVouchPanel } from "./ui.js";
 import type { CarryTicketRow, GameKey, TicketViewModel } from "./types.js";
 
 const cfg = env();
@@ -95,6 +96,21 @@ const commands = [
   new SlashCommandBuilder().setName("user_ticket_remove").setDescription("Delete your own ticket channel").addChannelOption((opt) => opt.setName("channel").setDescription("Optional ticket channel").setRequired(false)),
   new SlashCommandBuilder().setName("reset-daily-messages").setDescription("Reset all daily message statistics (Admin only)"),
 ].map((command) => command.toJSON() as ChatInputApplicationCommandData);
+
+function noticePayload(title: string, description: string, accentColor = 0x5865f2) {
+  return buildNotice(title, description, accentColor);
+}
+
+async function replyNotice(interaction: ChatInputCommandInteraction | StringSelectMenuInteraction | Interaction<CacheType>, title: string, description: string, accentColor = 0x5865f2, ephemeral = true) {
+  const payload = { ...noticePayload(title, description, accentColor), ephemeral } as any;
+  if ("reply" in interaction && interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+    await interaction.reply(payload);
+    return;
+  }
+  if ("editReply" in interaction && interaction.deferred) {
+    await interaction.editReply(noticePayload(title, description, accentColor) as any);
+  }
+}
 
 function parseGameKey(raw: string): GameKey | null {
   const value = raw.trim().toUpperCase() as GameKey;
@@ -252,32 +268,29 @@ function makeVouchModal(helperId?: string | null, gameKey?: GameKey | null) {
 async function handleCarrySelect(interaction: StringSelectMenuInteraction) {
   const gameKey = parseGameKey(interaction.values[0] ?? "");
   if (!interaction.guild || !gameKey) {
-    await interaction.reply({ content: "Invalid service selection.", ephemeral: true });
+    await replyNotice(interaction, "Invalid Service", "Invalid service selection.", 0xff0000);
     return;
   }
   const member = interaction.member instanceof GuildMember ? interaction.member : null;
   if (!isOwner(interaction.user.id)) {
     const gate = await getTicketGateState(interaction.guild, interaction.user.id, member);
     if (gate.blacklist) {
-      await interaction.reply({ content: `You are blacklisted from opening carry tickets.\nReason: \`${gate.blacklist.reason ?? "No reason provided."}\``, ephemeral: true });
+      await replyNotice(interaction, "Ticket Blacklisted", `You are blacklisted from opening carry tickets.\nReason: \`${gate.blacklist.reason ?? "No reason provided."}\``, 0xff0000);
       return;
     }
     if (gate.openTicket && !gate.booster) {
-      await interaction.reply({ content: `You already have an open carry request in <#${gate.openTicket.channel_id}>. Close that ticket first or continue there.`, ephemeral: true });
+      await replyNotice(interaction, "Open Ticket Exists", `You already have an open carry request in <#${gate.openTicket.channel_id}>. Close that ticket first or continue there.`, 0xfee75c);
       return;
     }
     if (gate.cooldown?.active) {
       scheduleCooldownReminder(interaction.guild.id, interaction.user.id, gate.cooldown.endsAt, interaction.channelId);
-      await interaction.reply({
-        content: [
+      await replyNotice(interaction, "Cooldown Active", [
           `You are on cooldown for **${formatDuration(gate.cooldown.remainingSeconds)}**.`,
           `Cooldown ends: <t:${Math.floor(gate.cooldown.endsAt.getTime() / 1000)}:R>`,
           `Rule: after submitting a vouch, you must wait **${VOUCH_COOLDOWN_HOURS} hours** before opening a new ticket.`,
           "",
           "A DM reminder has been scheduled.",
-        ].join("\n"),
-        ephemeral: true,
-      });
+        ].join("\n"), 0xfee75c);
       return;
     }
   }
@@ -295,7 +308,7 @@ async function handleCarryModal(interaction: Interaction<CacheType>) {
   const gameKey = userSelectedGame.get(interaction.user.id);
   userSelectedGame.delete(interaction.user.id);
   if (!gameKey) {
-    await interaction.reply({ content: "Session expired. Please select a service again.", ephemeral: true });
+    await replyNotice(interaction, "Session Expired", "Please select a service again.", 0xff0000);
     return true;
   }
   await interaction.deferReply({ ephemeral: true });
@@ -303,18 +316,16 @@ async function handleCarryModal(interaction: Interaction<CacheType>) {
   if (!isOwner(interaction.user.id)) {
     const gate = await getTicketGateState(interaction.guild, interaction.user.id, member);
     if (gate.blacklist) {
-      await interaction.editReply(`You are blacklisted from opening carry tickets.\nReason: \`${gate.blacklist.reason ?? "No reason provided."}\``);
+      await interaction.editReply(noticePayload("Ticket Blacklisted", `You are blacklisted from opening carry tickets.\nReason: \`${gate.blacklist.reason ?? "No reason provided."}\``, 0xff0000) as any);
       return true;
     }
     if (gate.openTicket && !gate.booster) {
-      await interaction.editReply(`You already have an open carry request in <#${gate.openTicket.channel_id}>. Close that ticket first or continue there.`);
+      await interaction.editReply(noticePayload("Open Ticket Exists", `You already have an open carry request in <#${gate.openTicket.channel_id}>. Close that ticket first or continue there.`, 0xfee75c) as any);
       return true;
     }
     if (gate.cooldown?.active) {
       scheduleCooldownReminder(interaction.guild.id, interaction.user.id, gate.cooldown.endsAt, interaction.channelId);
-      await interaction.editReply(
-        `You are still on cooldown for **${formatDuration(gate.cooldown.remainingSeconds)}**.\nCooldown ends: <t:${Math.floor(gate.cooldown.endsAt.getTime() / 1000)}:R>\nRule: submit a vouch, then wait **${VOUCH_COOLDOWN_HOURS} hours**.`,
-      );
+      await interaction.editReply(noticePayload("Cooldown Active", `You are still on cooldown for **${formatDuration(gate.cooldown.remainingSeconds)}**.\nCooldown ends: <t:${Math.floor(gate.cooldown.endsAt.getTime() / 1000)}:R>\nRule: submit a vouch, then wait **${VOUCH_COOLDOWN_HOURS} hours**.`, 0xfee75c) as any);
       return true;
     }
   }
@@ -613,8 +624,9 @@ async function setupCarryPanel(interaction: ChatInputCommandInteraction) {
   });
   const bullet = emojis.get("bullet")?.embed ?? "•";
   const supportedGames = buildSupportedGamesText(getEnabledGames(interaction.guild));
-  await channel.send(buildCarryPanel(options, interaction.guild!.name, bullet, supportedGames, interaction.guildId === RUNE_GUILD_ID));
-  await interaction.editReply(`${interaction.guild!.name} carry panel posted in ${channel.toString()}.`);
+  const menuInfoRef = interaction.guildId === RUNE_GUILD_ID ? `<#${RUNE_MENU_INFO_CHANNEL_ID}>` : undefined;
+  await channel.send(buildCarryPanel(options, interaction.guild!.name, bullet, supportedGames, interaction.guildId === RUNE_GUILD_ID, menuInfoRef));
+  await interaction.editReply(buildNotice("Carry Panel Posted", `${interaction.guild!.name} carry panel posted in ${channel.toString()}.`, 0x4ade80));
 }
 
 async function setupVouchPanel(interaction: ChatInputCommandInteraction) {
@@ -624,7 +636,7 @@ async function setupVouchPanel(interaction: ChatInputCommandInteraction) {
     return;
   }
   await channel.send(buildVouchPanel(interaction.guild!.name));
-  await interaction.reply({ content: `Vouch panel posted in ${channel.toString()}.`, ephemeral: true });
+  await interaction.reply({ ...buildNotice("Vouch Panel Posted", `Vouch panel posted in ${channel.toString()}.`, 0x4ade80), ephemeral: true });
 }
 
 async function handleChatCommand(interaction: ChatInputCommandInteraction) {
@@ -954,7 +966,7 @@ async function runLoops() {
   }, 15 * 60_000);
 }
 
-client.once("ready", async () => {
+client.once("clientReady", async () => {
   console.log(`[startup] Logged in as ${client.user?.tag}`);
   console.log(`[setup] Invite: https://discord.com/api/oauth2/authorize?client_id=${cfg.clientId}&permissions=8&scope=bot%20applications.commands`);
   await syncCommands().catch((error) => console.error("[setup] command sync failed", error));
@@ -974,7 +986,7 @@ client.on("interactionCreate", async (interaction) => {
   } catch (error) {
     console.error("[interaction] error", error);
     if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: "Something went wrong while handling that interaction.", ephemeral: true }).catch(() => undefined);
+      await interaction.reply({ ...(noticePayload("Interaction Error", "Something went wrong while handling that interaction.", 0xff0000) as any), ephemeral: true }).catch(() => undefined);
     }
   }
 });

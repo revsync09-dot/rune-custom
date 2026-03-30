@@ -29,6 +29,7 @@ export const VOUCH_REMINDER_HOURS = [1, 3] as const;
 export const RUNE_GUILD_ID = "1473028571932135638";
 export const RUNE_BULLET_EMOJI_ID = "1473126023158567074";
 export const RUNE_SELECT_EMOJI_ID = "1474275400925450492";
+export const RUNE_MENU_INFO_CHANNEL_ID = "1473153905956487320";
 export const DEFAULT_CARRY_PANEL_IMAGE =
   "https://media.discordapp.net/attachments/1473030218074689630/1488189876749996032/Diseno_sin_titulo_4.gif?ex=69cbe053&is=69ca8ed3&hm=be606b7571ca0b67178572e3785afee79c9a39884759efbd5b31a23a66996edc&=&width=916&height=515";
 

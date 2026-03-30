@@ -36,6 +36,7 @@ export function buildCarryPanel(
   bullet: string,
   supportedGamesText: string,
   runeMode: boolean,
+  menuInfoRef?: string,
 ) {
   const select = new StringSelectMenuBuilder()
     .setCustomId(CARRY_PANEL_SELECT)
@@ -56,7 +57,7 @@ export function buildCarryPanel(
         ? [
             "# Runes Carry Tickets",
             `${bullet} Welcome to Rune's carry system.`,
-            `${bullet} Please look in #menu-info for our carrier menu.`,
+            `${bullet} Please look in ${menuInfoRef ?? "#menu-info"} for our carrier menu.`,
             `${bullet} Click the dropdown below to get started!`,
             "",
             "**Support Games**",
@@ -159,4 +160,12 @@ export function buildHighlightMessage(helperMention: string, clientLabel: string
 
 export function buildSupportedGamesText(keys: GameKey[]): string {
   return keys.map((key) => `• **${GAME_LABEL[key]}**`).join("\n");
+}
+
+export function buildNotice(title: string, description: string, accentColor = 0x5865f2) {
+  const container = new ContainerBuilder().setAccentColor(accentColor);
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent([`# ${title}`, description].join("\n\n")),
+  );
+  return createV2Message([container]);
 }
