@@ -87,6 +87,8 @@ const commands = [
   new SlashCommandBuilder().setName("ticket-unblacklist").setDescription("Remove a user from the carry ticket blacklist").addUserOption((opt) => opt.setName("user").setDescription("User to unblacklist").setRequired(true)),
   new SlashCommandBuilder().setName("helper-stats").setDescription("Show helper profile stats card").addUserOption((opt) => opt.setName("helper").setDescription("Helper user").setRequired(true)),
   new SlashCommandBuilder().setName("leaderboard").setDescription("Show helper leaderboard card").addIntegerOption((opt) => opt.setName("limit").setDescription("How many helpers to show (max 10)").setRequired(false)),
+  new SlashCommandBuilder().setName("recent-vouches").setDescription("Show recent vouches").addUserOption((opt) => opt.setName("helper").setDescription("Optional helper filter").setRequired(false)).addIntegerOption((opt) => opt.setName("limit").setDescription("How many vouches to show").setRequired(false).setMinValue(1).setMaxValue(10)),
+  new SlashCommandBuilder().setName("vouch-games").setDescription("Show a helper's vouch breakdown by game").addUserOption((opt) => opt.setName("helper").setDescription("Helper user").setRequired(true)),
   new SlashCommandBuilder().setName("daily-messages").setDescription("Show today's message count").addUserOption((opt) => opt.setName("user").setDescription("User to check").setRequired(false)),
   new SlashCommandBuilder().setName("vouch_give").setDescription("Staff/Admin: manually award a vouch to a helper").addUserOption((opt) => opt.setName("helper").setDescription("Helper who should receive the vouch").setRequired(true)).addStringOption((opt) => opt.setName("game").setDescription("Service key").setRequired(true)).addIntegerOption((opt) => opt.setName("rating").setDescription("Rating from 1 to 5").setRequired(true).setMinValue(1).setMaxValue(5)).addStringOption((opt) => opt.setName("message").setDescription("Feedback text").setRequired(true).setMinLength(15).setMaxLength(500)),
   new SlashCommandBuilder().setName("get-carry-emoji-env").setDescription("Get .env lines for carry panel custom emojis"),
@@ -103,6 +105,13 @@ function noticePayload(title: string, description: string, accentColor = 0x5865f
 
 async function sendNotice(target: { send: (options: any) => Promise<any> }, title: string, description: string, accentColor = 0x5865f2, extra: Record<string, unknown> = {}) {
   return target.send({ ...(noticePayload(title, description, accentColor) as any), ...extra });
+}
+
+function formatVouchTime(value: string | null | undefined) {
+  if (!value) return "unknown";
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return "unknown";
+  return `<t:${Math.floor(parsed / 1000)}:R>`;
 }
 
 async function replyNotice(interaction: ChatInputCommandInteraction | StringSelectMenuInteraction | Interaction<CacheType>, title: string, description: string, accentColor = 0x5865f2, ephemeral = true) {
@@ -813,6 +822,36 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
       );
       const imageBuffer = await buildLeaderboardCardWithAvatars({ guildName: interaction.guild!.name, entries });
       await interaction.editReply({ ...(noticePayload("Helper Leaderboard", `Leaderboard for ${interaction.guild!.name}.`, 0x5865f2) as any), files: [new AttachmentBuilder(imageBuffer, { name: `leaderboard-${Math.floor(Date.now() / 1000)}.png` })] });
+      return;
+    }
+    case "recent-vouches": {
+      const helper = interaction.options.getUser("helper", false);
+      const limit = interaction.options.getInteger("limit", false) ?? 5;
+      const rows = await db.getRecentVouches(interaction.guildId!, limit, helper?.id).catch(() => []);
+      if (!rows.length) {
+        await replyNotice(interaction, "No Recent Vouches", helper ? `No recent vouches found for ${helper.toString()}.` : "No recent vouches found.", 0xff0000);
+        return;
+      }
+      const lines = rows.map((row, index) => {
+        const snippet = row.message.length > 110 ? `${row.message.slice(0, 107)}...` : row.message;
+        return [
+          `**${index + 1}.** <@${row.helper_user_id}> | **${row.game_key}** | **${row.rating}/5**`,
+          `By: <@${row.user_id}> | ${formatVouchTime(row.created_at)}`,
+          snippet,
+        ].join("\n");
+      });
+      await replyNotice(interaction, helper ? `Recent Vouches For ${helper.username}` : "Recent Vouches", lines.join("\n\n"), 0x5865f2);
+      return;
+    }
+    case "vouch-games": {
+      const helper = interaction.options.getUser("helper", true);
+      const breakdown = await db.getHelperGameBreakdown(interaction.guildId!, helper.id).catch(() => []);
+      if (!breakdown.length) {
+        await replyNotice(interaction, "No Game Data", `No vouch game breakdown found for ${helper.toString()}.`, 0xff0000);
+        return;
+      }
+      const lines = breakdown.map((entry, index) => `${index + 1}. **${entry.gameKey}** | ${entry.total} vouches | avg ${entry.average.toFixed(2)} | ${entry.fiveStarRate.toFixed(1)}% 5-star`);
+      await replyNotice(interaction, `Game Breakdown For ${helper.username}`, lines.join("\n"), 0x5865f2);
       return;
     }
     case "daily-messages": {

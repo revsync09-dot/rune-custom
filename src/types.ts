@@ -61,3 +61,23 @@ export interface BlacklistEntry {
   created_by?: string | null;
   created_at?: string | null;
 }
+
+export interface VouchRow {
+  id?: string;
+  guild_id: string;
+  user_id: string;
+  helper_user_id: string;
+  game_key: string;
+  rating: number;
+  message: string;
+  message_id?: string | null;
+  channel_id?: string | null;
+  created_at?: string | null;
+}
+
+export interface HelperGameBreakdownEntry {
+  gameKey: string;
+  total: number;
+  average: number;
+  fiveStarRate: number;
+}

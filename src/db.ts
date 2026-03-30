@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { env } from "./config.js";
-import type { BlacklistEntry, CarryTicketRow, LeaderboardEntry, VouchStats } from "./types.js";
+import type { BlacklistEntry, CarryTicketRow, HelperGameBreakdownEntry, LeaderboardEntry, VouchRow, VouchStats } from "./types.js";
 
 let supabaseClient: SupabaseClient | null = null;
 
@@ -161,6 +161,52 @@ export async function getNextTicketNumber(guildId: string): Promise<number> {
 export async function createVouch(payload: Record<string, string | number>): Promise<void> {
   const { error } = await client().from("vouches").insert(payload);
   if (error) throw error;
+}
+
+export async function getRecentVouches(guildId: string, limit = 5, helperUserId?: string): Promise<VouchRow[]> {
+  let query = client()
+    .from("vouches")
+    .select("*")
+    .eq("guild_id", guildId)
+    .order("created_at", { ascending: false })
+    .limit(Math.max(1, Math.min(limit, 10)));
+
+  if (helperUserId) {
+    query = query.eq("helper_user_id", helperUserId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []) as VouchRow[];
+}
+
+export async function getHelperGameBreakdown(guildId: string, helperUserId: string): Promise<HelperGameBreakdownEntry[]> {
+  const { data, error } = await client()
+    .from("vouches")
+    .select("game_key, rating")
+    .eq("guild_id", guildId)
+    .eq("helper_user_id", helperUserId);
+  if (error) throw error;
+
+  const grouped = new Map<string, { total: number; ratingSum: number; fiveStars: number }>();
+  for (const row of data ?? []) {
+    const gameKey = String(row.game_key ?? "N/A");
+    const rating = Number(row.rating ?? 0);
+    const item = grouped.get(gameKey) ?? { total: 0, ratingSum: 0, fiveStars: 0 };
+    item.total += 1;
+    item.ratingSum += rating;
+    if (rating === 5) item.fiveStars += 1;
+    grouped.set(gameKey, item);
+  }
+
+  return [...grouped.entries()]
+    .map(([gameKey, item]) => ({
+      gameKey,
+      total: item.total,
+      average: Math.round((item.ratingSum / item.total) * 100) / 100,
+      fiveStarRate: Math.round((item.fiveStars / item.total) * 1000) / 10,
+    }))
+    .sort((a, b) => b.total - a.total || b.average - a.average);
 }
 
 export async function getHelperStats(guildId: string, helperUserId: string): Promise<VouchStats> {
