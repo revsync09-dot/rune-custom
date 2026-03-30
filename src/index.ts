@@ -3,6 +3,7 @@ import {
   ChannelType,
   ChatInputCommandInteraction,
   Client,
+  DiscordAPIError,
   GatewayIntentBits,
   Guild,
   GuildMember,
@@ -140,19 +141,28 @@ async function getHelperSnapshotData(guildId: string, helperId: string) {
 async function sendHelperSnapshot(channel: TextChannel, guildId: string, helperId: string) {
   const snapshot = await getHelperSnapshotData(guildId, helperId);
   const imageBuffer = await buildHelperSnapshotCard(snapshot);
-  await sendNotice(channel, "Helper Snapshot", `Current helper snapshot for <@${helperId}>.`, 0x5865f2, {
-    files: [new AttachmentBuilder(imageBuffer, { name: `helper-snapshot-${helperId}.png` })],
-  }).catch(() => undefined);
+  await channel.send({ files: [new AttachmentBuilder(imageBuffer, { name: `helper-snapshot-${helperId}.png` })] }).catch(() => undefined);
 }
 
 async function replyNotice(interaction: ChatInputCommandInteraction | StringSelectMenuInteraction | Interaction<CacheType>, title: string, description: string, accentColor = 0x5865f2, ephemeral = true) {
   const payload = { ...noticePayload(title, description, accentColor), ephemeral } as any;
-  if ("reply" in interaction && interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-    await interaction.reply(payload);
-    return;
-  }
-  if ("editReply" in interaction && interaction.deferred) {
-    await interaction.editReply(noticePayload(title, description, accentColor) as any);
+  try {
+    if ("reply" in interaction && interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+      await interaction.reply(payload);
+      return;
+    }
+    if ("editReply" in interaction && interaction.deferred) {
+      await interaction.editReply(noticePayload(title, description, accentColor) as any);
+      return;
+    }
+    if ("followUp" in interaction && (interaction.replied || interaction.deferred)) {
+      await interaction.followUp(payload);
+    }
+  } catch (error) {
+    if (error instanceof DiscordAPIError && (error.code === 40060 || error.code === 10062)) {
+      return;
+    }
+    throw error;
   }
 }
 
@@ -273,12 +283,10 @@ async function createManualVouchPost(interaction: ChatInputCommandInteraction, h
     },
   });
 
-  const targetChannel = (await getConfiguredTextChannel(interaction.guild!, cfg.vouchChannelId, ["vouch", "vouches", "feedback"])) ?? interaction.channel;
+  const targetChannel = await getConfiguredTextChannel(interaction.guild!, cfg.vouchChannelId, ["vouch", "vouches", "feedback"]);
   if (!(targetChannel instanceof TextChannel)) throw new Error("Vouch channel is not configured correctly or does not exist.");
   const filename = `vouch-manual-${helper.id}-${Math.floor(Date.now() / 1000)}.png`;
-  const sent = await sendNotice(targetChannel, "Staff Vouch Awarded", `A manual vouch was awarded to ${helper.toString()} for **${GAME_LABEL[gameKey]}** with **${rating}/5**.`, 0xff5f7e, {
-    files: [new AttachmentBuilder(imageBuffer, { name: filename })],
-  });
+  const sent = await targetChannel.send({ files: [new AttachmentBuilder(imageBuffer, { name: filename })] });
   if (rating === 5) {
     const highlightChannel = await getConfiguredTextChannel(interaction.guild!, cfg.highlightChannelId, ["highlight", "highlights"]);
     if (highlightChannel instanceof TextChannel) {
@@ -323,29 +331,6 @@ async function handleCarrySelect(interaction: StringSelectMenuInteraction) {
   if (!interaction.guild || !gameKey) {
     await replyNotice(interaction, "Invalid Service", "Invalid service selection.", 0xff0000);
     return;
-  }
-  const member = interaction.member instanceof GuildMember ? interaction.member : null;
-  if (!isOwner(interaction.user.id)) {
-    const gate = await getTicketGateState(interaction.guild, interaction.user.id, member);
-    if (gate.blacklist) {
-      await replyNotice(interaction, "Ticket Blacklisted", `You are blacklisted from opening carry tickets.\nReason: \`${gate.blacklist.reason ?? "No reason provided."}\``, 0xff0000);
-      return;
-    }
-    if (gate.openTicket && !gate.booster) {
-      await replyNotice(interaction, "Open Ticket Exists", `You already have an open carry request in <#${gate.openTicket.channel_id}>. Close that ticket first or continue there.`, 0xfee75c);
-      return;
-    }
-    if (gate.cooldown?.active) {
-      scheduleCooldownReminder(interaction.guild.id, interaction.user.id, gate.cooldown.endsAt, interaction.channelId);
-      await replyNotice(interaction, "Cooldown Active", [
-          `You are on cooldown for **${formatDuration(gate.cooldown.remainingSeconds)}**.`,
-          `Cooldown ends: <t:${Math.floor(gate.cooldown.endsAt.getTime() / 1000)}:R>`,
-          `Rule: after submitting a vouch, you must wait **${VOUCH_COOLDOWN_HOURS} hours** before opening a new ticket.`,
-          "",
-          "A DM reminder has been scheduled.",
-        ].join("\n"), 0xfee75c);
-      return;
-    }
   }
   userSelectedGame.set(interaction.user.id, gameKey);
   const modal = new ModalBuilder().setCustomId(CARRY_MODAL).setTitle("Carry Request Details");
@@ -476,12 +461,12 @@ async function handleVouchModal(interaction: Interaction<CacheType>) {
     await replyNotice(interaction, "Invalid Rating", "Rating must be a whole number between 1 and 5.", 0xff0000);
     return true;
   }
+  await interaction.deferReply({ ephemeral: true });
   const helperUser = await client.users.fetch(helperId).catch(() => null);
   if (!helperUser) {
-    await replyNotice(interaction, "Helper Not Found", "I could not find that helper user.", 0xff0000);
+    await interaction.editReply(noticePayload("Helper Not Found", "I could not find that helper user.", 0xff0000) as any);
     return true;
   }
-  await interaction.deferReply({ ephemeral: true });
 
   const pendingClosedTicket = await db.getLatestUnvouchedClosedTicket(interaction.guild.id, interaction.user.id).catch(() => null);
   const baseStats = await db.getHelperStats(interaction.guild.id, helperId).catch(() => ({ total: 0, average: 0, fiveStarRate: 0, topGame: gameKey }));
@@ -505,15 +490,13 @@ async function handleVouchModal(interaction: Interaction<CacheType>) {
     },
   });
 
-  const targetChannel = (await getConfiguredTextChannel(interaction.guild, cfg.vouchChannelId, ["vouch", "vouches", "feedback"])) ?? interaction.channel;
+  const targetChannel = await getConfiguredTextChannel(interaction.guild, cfg.vouchChannelId, ["vouch", "vouches", "feedback"]);
   if (!(targetChannel instanceof TextChannel)) {
     await interaction.editReply(noticePayload("Vouch Channel Missing", "Vouch channel is not configured correctly or does not exist.", 0xff0000) as any);
     return true;
   }
   const filename = `vouch-${interaction.user.id}-${Math.floor(Date.now() / 1000)}.png`;
-  const sent = await sendNotice(targetChannel, "New Vouch", `A new vouch was submitted for <@${helperId}> in **${GAME_LABEL[gameKey]}** with **${rating}/5**.`, 0xff5f7e, {
-    files: [new AttachmentBuilder(imageBuffer, { name: filename })],
-  });
+  const sent = await targetChannel.send({ files: [new AttachmentBuilder(imageBuffer, { name: filename })] });
 
   if (rating === 5) {
     const highlightChannel = await getConfiguredTextChannel(interaction.guild, cfg.highlightChannelId, ["highlight", "highlights"]);
