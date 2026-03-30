@@ -6,7 +6,7 @@ Discord bot for Rune carry tickets and vouches, built for Northflank with Discor
 
 1. Copy `.env.example` to `.env`.
 2. Fill in Discord and Supabase variables.
-3. Run the SQL from [schema.sql](C:\Users\subha\Downloads\rune custom bot\schema.sql) in Supabase.
+3. Run the SQL from `schema.sql` in Supabase.
 4. Install dependencies with `npm install`.
 5. Start locally with `npm run dev`.
 
