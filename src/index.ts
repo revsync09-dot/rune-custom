@@ -114,6 +114,51 @@ function formatVouchTime(value: string | null | undefined) {
   return `<t:${Math.floor(parsed / 1000)}:R>`;
 }
 
+async function buildHelperSnapshotText(guildId: string, helperId: string) {
+  const [stats, breakdown, recent] = await Promise.all([
+    db.getHelperStats(guildId, helperId).catch(() => ({ total: 0, average: 0, fiveStarRate: 0, topGame: "N/A" })),
+    db.getHelperGameBreakdown(guildId, helperId).catch(() => []),
+    db.getRecentVouches(guildId, 3, helperId).catch(() => []),
+  ]);
+
+  const breakdownText =
+    breakdown.length > 0
+      ? breakdown
+          .slice(0, 3)
+          .map((entry) => `- **${entry.gameKey}**: ${entry.total} vouches | avg ${entry.average.toFixed(2)} | ${entry.fiveStarRate.toFixed(1)}% 5-star`)
+          .join("\n")
+      : "- No game data yet";
+
+  const recentText =
+    recent.length > 0
+      ? recent
+          .map((row, index) => {
+            const snippet = row.message.length > 80 ? `${row.message.slice(0, 77)}...` : row.message;
+            return `${index + 1}. **${row.rating}/5** ${formatVouchTime(row.created_at)}\n${snippet}`;
+          })
+          .join("\n\n")
+      : "No recent vouches yet.";
+
+  return [
+    `**Overall**`,
+    `- Total vouches: **${stats.total}**`,
+    `- Average rating: **${stats.average.toFixed(2)}**`,
+    `- Five-star rate: **${stats.fiveStarRate.toFixed(1)}%**`,
+    `- Top game: **${stats.topGame}**`,
+    "",
+    `**Game Breakdown**`,
+    breakdownText,
+    "",
+    `**Recent Vouches**`,
+    recentText,
+  ].join("\n");
+}
+
+async function sendHelperSnapshot(channel: TextChannel, guildId: string, helperId: string) {
+  const snapshot = await buildHelperSnapshotText(guildId, helperId);
+  await sendNotice(channel, "Helper Snapshot", snapshot, 0x5865f2).catch(() => undefined);
+}
+
 async function replyNotice(interaction: ChatInputCommandInteraction | StringSelectMenuInteraction | Interaction<CacheType>, title: string, description: string, accentColor = 0x5865f2, ephemeral = true) {
   const payload = { ...noticePayload(title, description, accentColor), ephemeral } as any;
   if ("reply" in interaction && interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
@@ -523,7 +568,8 @@ async function handleVouchModal(interaction: Interaction<CacheType>) {
   let reply = `Vouch submitted in ${targetChannel.toString()}.`;
   if (inTicket) reply += " This channel will be deleted in 5 seconds.";
   else if (matchedPendingTicket?.ticketNum !== undefined) reply += ` Ticket #${String(matchedPendingTicket.ticketNum).padStart(4, "0")} has been marked as vouched.`;
-  await interaction.editReply(noticePayload("Vouch Submitted", reply, 0x4ade80) as any);
+  const postVouchSnapshot = await buildHelperSnapshotText(interaction.guild.id, helperId);
+  await interaction.editReply(noticePayload("Vouch Submitted", `${reply}\n\n${postVouchSnapshot}`, 0x4ade80) as any);
   await sendLog(interaction.guild, `Vouch submitted by <@${interaction.user.id}> for <@${helperId}> (${rating}/5)`);
   if (inTicket && interaction.channel instanceof TextChannel) {
     setTimeout(() => {
@@ -557,6 +603,7 @@ async function handleButton(interaction: Interaction<CacheType>) {
     ticketState.set(interaction.channelId, ticket);
     await db.updateTicketClaimed(interaction.channelId, interaction.user.id);
     await updateTicketMessage(interaction.channel, ticket);
+    await sendHelperSnapshot(interaction.channel, interaction.guild.id, interaction.user.id);
     await replyNotice(interaction, "Ticket Claimed", `Ticket claimed by ${interaction.user.toString()}.`, 0x4ade80);
     await sendLog(interaction.guild, `Claimed: <#${interaction.channelId}> by ${interaction.user.toString()}`);
     return true;
@@ -737,6 +784,7 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
       ticketState.set(interaction.channelId, ticket);
       await db.updateTicketClaimed(interaction.channelId, helper.id);
       await updateTicketMessage(interaction.channel, ticket);
+      await sendHelperSnapshot(interaction.channel, interaction.guildId!, helper.id);
       await replyNotice(interaction, "Ticket Transferred", `Ticket transferred to ${helper.toString()}.`, 0x4ade80);
       await sendLog(interaction.guild!, `Carry request transferred: <#${interaction.channelId}> to ${helper.toString()}`);
       return;
