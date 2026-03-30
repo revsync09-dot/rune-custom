@@ -147,6 +147,13 @@ async function getTicketOwnerId(channel: GuildTextBasedChannel | null): Promise<
   return { ownerId: meta.ownerId ?? null, ticket };
 }
 
+function canCloseTicket(member: GuildMember | null, actorId: string, ownerId: string | null, ticket: TicketViewModel | null) {
+  if (actorId === ownerId) return true;
+  if (canCloseAnyTicket(member)) return true;
+  if (ticket && isHelperForGame(member, ticket.gameKey)) return true;
+  return false;
+}
+
 async function reconcileOpenTicketRecord(guild: Guild, ticketRow: CarryTicketRow | null, closedBy: string) {
   if (!ticketRow?.channel_id) return ticketRow;
   const channel = await resolveGuildChannel(guild, ticketRow.channel_id);
@@ -583,7 +590,7 @@ async function handleButton(interaction: Interaction<CacheType>) {
       await replyNotice(interaction, "Invalid Channel", "This command only works in ticket channels.", 0xff0000);
       return true;
     }
-    if (interaction.user.id !== ownerId && !canCloseAnyTicket(member)) {
+    if (!canCloseTicket(member, interaction.user.id, ownerId, ticket)) {
       await replyNotice(interaction, "Permission Denied", "You do not have permission to close this ticket.", 0xff0000);
       return true;
     }
@@ -678,12 +685,12 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
         await replyNotice(interaction, "Invalid Channel", "This command only works in ticket channels.", 0xff0000);
         return;
       }
-      const { ownerId } = await getTicketOwnerId(interaction.channel);
+      const { ownerId, ticket } = await getTicketOwnerId(interaction.channel);
       if (!ownerId && !isTicketChannel(interaction.channel)) {
         await replyNotice(interaction, "Invalid Channel", "This command only works in ticket channels.", 0xff0000);
         return;
       }
-      if (interaction.user.id !== ownerId && !canCloseAnyTicket(member)) {
+      if (!canCloseTicket(member, interaction.user.id, ownerId, ticket)) {
         await replyNotice(interaction, "Permission Denied", "You do not have permission to close this ticket.", 0xff0000);
         return;
       }
