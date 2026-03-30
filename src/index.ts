@@ -101,6 +101,10 @@ function noticePayload(title: string, description: string, accentColor = 0x5865f
   return buildNotice(title, description, accentColor);
 }
 
+async function sendNotice(target: { send: (options: any) => Promise<any> }, title: string, description: string, accentColor = 0x5865f2, extra: Record<string, unknown> = {}) {
+  return target.send({ ...(noticePayload(title, description, accentColor) as any), ...extra });
+}
+
 async function replyNotice(interaction: ChatInputCommandInteraction | StringSelectMenuInteraction | Interaction<CacheType>, title: string, description: string, accentColor = 0x5865f2, ephemeral = true) {
   const payload = { ...noticePayload(title, description, accentColor), ephemeral } as any;
   if ("reply" in interaction && interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
@@ -163,7 +167,7 @@ async function getTicketGateState(guild: Guild, userId: string, member: GuildMem
 async function sendLog(guild: Guild, text: string) {
   const channel = await getConfiguredTextChannel(guild, cfg.logChannelId, ["log", "bot-log", "system-log"]);
   if (!channel) return;
-  await channel.send({ content: text }).catch(() => undefined);
+  await sendNotice(channel, "System Log", text, 0x7a92ff).catch(() => undefined);
 }
 
 async function closeTicketAndNotify(channel: TextChannel, guild: Guild, closedBy: string, actorId: string) {
@@ -185,7 +189,7 @@ async function sendPendingVouchDm(userId: string, ticketNum: number | null, hour
   if (!user) return false;
   const ticketLabel = ticketNum !== null ? `#${String(ticketNum).padStart(4, "0")}` : "your closed ticket";
   const reminderLine = hoursElapsed !== undefined ? `\nReminder: it has been about ${hoursElapsed} hour(s) without a vouch.` : "";
-  await user.send(`Your Rune ticket ${ticketLabel} was closed without a vouch.${reminderLine}\nPlease submit your vouch for the helper as soon as possible.`).catch(() => null);
+  await sendNotice(user, "Pending Vouch", `Your Rune ticket ${ticketLabel} was closed without a vouch.${reminderLine}\nPlease submit your vouch for the helper as soon as possible.`, 0xfaa61a).catch(() => null);
   return true;
 }
 
@@ -225,7 +229,9 @@ async function createManualVouchPost(interaction: ChatInputCommandInteraction, h
   const targetChannel = (await getConfiguredTextChannel(interaction.guild!, cfg.vouchChannelId, ["vouch", "vouches", "feedback"])) ?? interaction.channel;
   if (!(targetChannel instanceof TextChannel)) throw new Error("Vouch channel is not configured correctly or does not exist.");
   const filename = `vouch-manual-${helper.id}-${Math.floor(Date.now() / 1000)}.png`;
-  const sent = await targetChannel.send({ files: [new AttachmentBuilder(imageBuffer, { name: filename })] });
+  const sent = await sendNotice(targetChannel, "Staff Vouch Awarded", `A manual vouch was awarded to ${helper.toString()} for **${GAME_LABEL[gameKey]}** with **${rating}/5**.`, 0xff5f7e, {
+    files: [new AttachmentBuilder(imageBuffer, { name: filename })],
+  });
   if (rating === 5) {
     const highlightChannel = await getConfiguredTextChannel(interaction.guild!, cfg.highlightChannelId, ["highlight", "highlights"]);
     if (highlightChannel instanceof TextChannel) {
@@ -354,7 +360,7 @@ async function handleCarryModal(interaction: Interaction<CacheType>) {
     parent: categoryId ?? undefined,
     permissionOverwrites: overwrites,
   }).catch(async (error) => {
-    await interaction.editReply(`Failed to create the ticket channel: ${error}`);
+    await interaction.editReply(noticePayload("Ticket Creation Failed", `Failed to create the ticket channel: ${error}`, 0xff0000) as any);
     return null;
   });
   if (!(createdChannel instanceof TextChannel)) return true;
@@ -379,7 +385,7 @@ async function handleCarryModal(interaction: Interaction<CacheType>) {
   };
 
   const helperPing = helperRole?.toString() ?? helperRoleMention(gameKey);
-  await createdChannel.send(`${helperPing} <@${interaction.user.id}>`);
+  await sendNotice(createdChannel, "New Carry Request", `${helperPing} <@${interaction.user.id}>`, 0x6c4dff);
   const msg = await createdChannel.send(buildTicketMessage(ticket));
   ticket.msgId = msg.id;
   ticketState.set(createdChannel.id, ticket);
@@ -396,7 +402,7 @@ async function handleCarryModal(interaction: Interaction<CacheType>) {
     status: "open",
     created_at: new Date().toISOString(),
   }).catch((error) => console.error("[db] Failed to save ticket", error));
-  await interaction.editReply(`Your carry request is ready: ${createdChannel.toString()}`);
+  await interaction.editReply(noticePayload("Carry Request Ready", `Your carry request is ready: ${createdChannel.toString()}`, 0x4ade80) as any);
   await sendLog(interaction.guild, `Carry request opened: ${createdChannel.toString()} by <@${interaction.user.id}> for ${GAME_LABEL[gameKey]}`);
   return true;
 }
@@ -412,20 +418,20 @@ async function handleVouchModal(interaction: Interaction<CacheType>) {
   const message = interaction.fields.getTextInputValue("message").trim();
 
   if (!helperId) {
-    await interaction.reply({ content: "Enter a valid helper mention or ID.", ephemeral: true });
+    await replyNotice(interaction, "Invalid Helper", "Enter a valid helper mention or ID.", 0xff0000);
     return true;
   }
   if (!gameKey) {
-    await interaction.reply({ content: "Service must be one of: ALS, AG, AC, UTD, AV, AO, BL, SP.", ephemeral: true });
+    await replyNotice(interaction, "Invalid Service", "Service must be one of: ALS, AG, AC, UTD, AV, AO, BL, SP.", 0xff0000);
     return true;
   }
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-    await interaction.reply({ content: "Rating must be a whole number between 1 and 5.", ephemeral: true });
+    await replyNotice(interaction, "Invalid Rating", "Rating must be a whole number between 1 and 5.", 0xff0000);
     return true;
   }
   const helperUser = await client.users.fetch(helperId).catch(() => null);
   if (!helperUser) {
-    await interaction.reply({ content: "I could not find that helper user.", ephemeral: true });
+    await replyNotice(interaction, "Helper Not Found", "I could not find that helper user.", 0xff0000);
     return true;
   }
   await interaction.deferReply({ ephemeral: true });
@@ -454,11 +460,13 @@ async function handleVouchModal(interaction: Interaction<CacheType>) {
 
   const targetChannel = (await getConfiguredTextChannel(interaction.guild, cfg.vouchChannelId, ["vouch", "vouches", "feedback"])) ?? interaction.channel;
   if (!(targetChannel instanceof TextChannel)) {
-    await interaction.editReply("Vouch channel is not configured correctly or does not exist.");
+    await interaction.editReply(noticePayload("Vouch Channel Missing", "Vouch channel is not configured correctly or does not exist.", 0xff0000) as any);
     return true;
   }
   const filename = `vouch-${interaction.user.id}-${Math.floor(Date.now() / 1000)}.png`;
-  const sent = await targetChannel.send({ files: [new AttachmentBuilder(imageBuffer, { name: filename })] });
+  const sent = await sendNotice(targetChannel, "New Vouch", `A new vouch was submitted for <@${helperId}> in **${GAME_LABEL[gameKey]}** with **${rating}/5**.`, 0xff5f7e, {
+    files: [new AttachmentBuilder(imageBuffer, { name: filename })],
+  });
 
   if (rating === 5) {
     const highlightChannel = await getConfiguredTextChannel(interaction.guild, cfg.highlightChannelId, ["highlight", "highlights"]);
@@ -499,7 +507,7 @@ async function handleVouchModal(interaction: Interaction<CacheType>) {
   let reply = `Vouch submitted in ${targetChannel.toString()}.`;
   if (inTicket) reply += " This channel will be deleted in 5 seconds.";
   else if (matchedPendingTicket?.ticketNum !== undefined) reply += ` Ticket #${String(matchedPendingTicket.ticketNum).padStart(4, "0")} has been marked as vouched.`;
-  await interaction.editReply(reply);
+  await interaction.editReply(noticePayload("Vouch Submitted", reply, 0x4ade80) as any);
   await sendLog(interaction.guild, `Vouch submitted by <@${interaction.user.id}> for <@${helperId}> (${rating}/5)`);
   if (inTicket && interaction.channel instanceof TextChannel) {
     setTimeout(() => {
@@ -517,15 +525,15 @@ async function handleButton(interaction: Interaction<CacheType>) {
 
   if (interaction.customId === TICKET_CLAIM) {
     if (!ticket) {
-      await interaction.reply({ content: "Carry data missing.", ephemeral: true });
+      await replyNotice(interaction, "Ticket Missing", "Carry data missing.", 0xff0000);
       return true;
     }
     if (ticket.claimedBy) {
-      await interaction.reply({ content: `Already claimed by <@${ticket.claimedBy}>.`, ephemeral: true });
+      await replyNotice(interaction, "Already Claimed", `Already claimed by <@${ticket.claimedBy}>.`, 0xfee75c);
       return true;
     }
     if (!isHelperForGame(member, ticket.gameKey)) {
-      await interaction.reply({ content: "You are not a helper for this game.", ephemeral: true });
+      await replyNotice(interaction, "Not Allowed", "You are not a helper for this game.", 0xff0000);
       return true;
     }
     ticket.claimedBy = interaction.user.id;
@@ -533,18 +541,18 @@ async function handleButton(interaction: Interaction<CacheType>) {
     ticketState.set(interaction.channelId, ticket);
     await db.updateTicketClaimed(interaction.channelId, interaction.user.id);
     await updateTicketMessage(interaction.channel, ticket);
-    await interaction.reply({ content: `Ticket claimed by ${interaction.user.toString()}.`, ephemeral: true });
+    await replyNotice(interaction, "Ticket Claimed", `Ticket claimed by ${interaction.user.toString()}.`, 0x4ade80);
     await sendLog(interaction.guild, `Claimed: <#${interaction.channelId}> by ${interaction.user.toString()}`);
     return true;
   }
 
   if (interaction.customId === TICKET_UNCLAIM) {
     if (!ticket?.claimedBy) {
-      await interaction.reply({ content: "Not claimed.", ephemeral: true });
+      await replyNotice(interaction, "Not Claimed", "Not claimed.", 0xff0000);
       return true;
     }
     if (interaction.user.id !== ticket.claimedBy && !isStaff(member)) {
-      await interaction.reply({ content: "Only the helper or staff can unclaim.", ephemeral: true });
+      await replyNotice(interaction, "Not Allowed", "Only the helper or staff can unclaim.", 0xff0000);
       return true;
     }
     ticket.claimedBy = null;
@@ -552,17 +560,17 @@ async function handleButton(interaction: Interaction<CacheType>) {
     ticketState.set(interaction.channelId, ticket);
     await db.unclaimTicket(interaction.channelId);
     await updateTicketMessage(interaction.channel, ticket);
-    await interaction.reply({ content: `Ticket unclaimed by ${interaction.user.toString()}.`, ephemeral: true });
+    await replyNotice(interaction, "Ticket Unclaimed", `Ticket unclaimed by ${interaction.user.toString()}.`, 0x4ade80);
     return true;
   }
 
   if (interaction.customId === TICKET_VOUCH_BTN) {
     if (!ticket?.claimedBy) {
-      await interaction.reply({ content: "Claim required for vouch.", ephemeral: true });
+      await replyNotice(interaction, "Claim Required", "Claim required for vouch.", 0xff0000);
       return true;
     }
     if (interaction.user.id !== ticket.userId) {
-      await interaction.reply({ content: "Only the customer can vouch.", ephemeral: true });
+      await replyNotice(interaction, "Not Allowed", "Only the customer can vouch.", 0xff0000);
       return true;
     }
     await interaction.showModal(makeVouchModal(ticket.claimedBy, ticket.gameKey));
@@ -572,18 +580,18 @@ async function handleButton(interaction: Interaction<CacheType>) {
   if (interaction.customId === TICKET_CLOSE_BTN) {
     const ownerId = ticket?.userId ?? extractTicketMeta(interaction.channel.topic ?? "").ownerId ?? null;
     if (!ownerId && !isTicketChannel(interaction.channel)) {
-      await interaction.reply({ content: "This command only works in ticket channels.", ephemeral: true });
+      await replyNotice(interaction, "Invalid Channel", "This command only works in ticket channels.", 0xff0000);
       return true;
     }
     if (interaction.user.id !== ownerId && !canCloseAnyTicket(member)) {
-      await interaction.reply({ content: "You do not have permission to close this ticket.", ephemeral: true });
+      await replyNotice(interaction, "Permission Denied", "You do not have permission to close this ticket.", 0xff0000);
       return true;
     }
     await closeTicketAndNotify(interaction.channel, interaction.guild, interaction.user.id, interaction.user.id).catch(async (error) => {
-      await interaction.reply({ content: `Failed to close ticket: ${error}`, ephemeral: true });
+      await replyNotice(interaction, "Close Failed", `Failed to close ticket: ${error}`, 0xff0000);
     });
     if (!interaction.replied) {
-      await interaction.reply({ content: "Ticket closed. This channel will be deleted in 3 seconds.", ephemeral: true });
+      await replyNotice(interaction, "Ticket Closed", "Ticket closed. This channel will be deleted in 3 seconds.", 0x4ade80);
       setTimeout(() => interaction.channel?.delete("Ticket closed").catch(() => undefined), 3000);
     }
     return true;
@@ -607,10 +615,10 @@ async function syncCommands() {
 
 async function setupCarryPanel(interaction: ChatInputCommandInteraction) {
   const channel = interaction.options.getChannel("channel", true);
-  if (!(channel instanceof TextChannel)) {
-    await interaction.reply({ content: "Target must be a text channel.", ephemeral: true });
-    return;
-  }
+      if (!(channel instanceof TextChannel)) {
+        await replyNotice(interaction, "Invalid Channel", "Target must be a text channel.", 0xff0000);
+        return;
+      }
   await interaction.deferReply({ ephemeral: true });
   const emojis = await getCarryEmojis(interaction.guild);
   const options = getGameOptionKeys(interaction.guild).map((item) => {
@@ -632,7 +640,7 @@ async function setupCarryPanel(interaction: ChatInputCommandInteraction) {
 async function setupVouchPanel(interaction: ChatInputCommandInteraction) {
   const channel = interaction.options.getChannel("channel", true);
   if (!(channel instanceof TextChannel)) {
-    await interaction.reply({ content: "Target must be a text channel.", ephemeral: true });
+    await replyNotice(interaction, "Invalid Channel", "Target must be a text channel.", 0xff0000);
     return;
   }
   await channel.send(buildVouchPanel(interaction.guild!.name));
@@ -654,7 +662,7 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
     "vouch_give",
   ]);
   if (adminOnly.has(interaction.commandName) && !canUseAdminCommands(member)) {
-    await interaction.reply({ content: "Only admin, owner, or authorized staff can use slash commands.", ephemeral: true });
+    await replyNotice(interaction, "Permission Denied", "Only admin, owner, or authorized staff can use slash commands.", 0xff0000);
     return;
   }
 
@@ -667,45 +675,45 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
       return;
     case "close-ticket": {
       if (!(interaction.channel instanceof TextChannel)) {
-        await interaction.reply({ content: "This command only works in ticket channels.", ephemeral: true });
+        await replyNotice(interaction, "Invalid Channel", "This command only works in ticket channels.", 0xff0000);
         return;
       }
       const { ownerId } = await getTicketOwnerId(interaction.channel);
       if (!ownerId && !isTicketChannel(interaction.channel)) {
-        await interaction.reply({ content: "This command only works in ticket channels.", ephemeral: true });
+        await replyNotice(interaction, "Invalid Channel", "This command only works in ticket channels.", 0xff0000);
         return;
       }
       if (interaction.user.id !== ownerId && !canCloseAnyTicket(member)) {
-        await interaction.reply({ content: "You do not have permission to close this ticket.", ephemeral: true });
+        await replyNotice(interaction, "Permission Denied", "You do not have permission to close this ticket.", 0xff0000);
         return;
       }
       await closeTicketAndNotify(interaction.channel, interaction.guild!, interaction.user.id, interaction.user.id);
-      await interaction.reply({ content: "Carry request closed. This channel will be deleted in 3 seconds.", ephemeral: true });
+      await replyNotice(interaction, "Carry Request Closed", "This channel will be deleted in 3 seconds.", 0x4ade80);
       setTimeout(() => interaction.channel?.delete("Carry request closed").catch(() => undefined), 3000);
       return;
     }
     case "transfer-ticket": {
       if (!(interaction.channel instanceof TextChannel)) {
-        await interaction.reply({ content: "This command only works in an active carry ticket.", ephemeral: true });
+        await replyNotice(interaction, "Invalid Channel", "This command only works in an active carry ticket.", 0xff0000);
         return;
       }
       const helper = await interaction.guild!.members.fetch(interaction.options.getUser("helper", true).id).catch(() => null);
       const ticket = await fetchTicket(interaction.channelId);
       if (!ticket || !helper) {
-        await interaction.reply({ content: "This command only works in an active carry ticket.", ephemeral: true });
+        await replyNotice(interaction, "Ticket Missing", "This command only works in an active carry ticket.", 0xff0000);
         return;
       }
       const isCurrentHelper = Boolean(ticket.claimedBy && interaction.user.id === ticket.claimedBy);
       if (!isCurrentHelper && !isStaff(member)) {
-        await interaction.reply({ content: "Only the claimed helper or staff can transfer this ticket.", ephemeral: true });
+        await replyNotice(interaction, "Permission Denied", "Only the claimed helper or staff can transfer this ticket.", 0xff0000);
         return;
       }
       if (helper.user.bot) {
-        await interaction.reply({ content: "You cannot transfer a ticket to a bot.", ephemeral: true });
+        await replyNotice(interaction, "Invalid Helper", "You cannot transfer a ticket to a bot.", 0xff0000);
         return;
       }
       if (!isHelperForGame(helper, ticket.gameKey)) {
-        await interaction.reply({ content: "That member is not a helper for this game.", ephemeral: true });
+        await replyNotice(interaction, "Invalid Helper", "That member is not a helper for this game.", 0xff0000);
         return;
       }
       ticket.claimedBy = helper.id;
@@ -713,7 +721,7 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
       ticketState.set(interaction.channelId, ticket);
       await db.updateTicketClaimed(interaction.channelId, helper.id);
       await updateTicketMessage(interaction.channel, ticket);
-      await interaction.reply({ content: `Ticket transferred to ${helper.toString()}.`, ephemeral: true });
+      await replyNotice(interaction, "Ticket Transferred", `Ticket transferred to ${helper.toString()}.`, 0x4ade80);
       await sendLog(interaction.guild!, `Carry request transferred: <#${interaction.channelId}> to ${helper.toString()}`);
       return;
     }
@@ -724,14 +732,14 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
       const cooldown = getVouchCooldownState(lastVouch);
       const blacklist = await db.getTicketBlacklistEntry(interaction.guildId!, targetUser.id).catch(() => null);
       await interaction.reply({
-        content: [
+        ...(noticePayload("Carry Cooldown Status", [
           `Status for <@${targetUser.id}>`,
           `Open Ticket: ${openTicket?.channel_id ? `<#${openTicket.channel_id}>` : "None"}`,
           cooldown?.active ? `Cooldown: Active for ${formatDuration(cooldown.remainingSeconds)}` : "Cooldown: Ready now",
           cooldown?.active ? `Ends: <t:${Math.floor(cooldown.endsAt.getTime() / 1000)}:R>` : "Ends: No active cooldown",
           `Rule: ${VOUCH_COOLDOWN_HOURS} hours after a submitted vouch`,
           `Blacklist: ${blacklist ? `Blocked - ${blacklist.reason ?? "No reason set"}` : "Not blacklisted"}`,
-        ].join("\n"),
+        ].join("\n"), 0x5865f2) as any),
         ephemeral: true,
       });
       return;
@@ -740,14 +748,14 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
       const user = interaction.options.getUser("user", true);
       const reason = interaction.options.getString("reason", true).trim();
       await db.addTicketBlacklist(interaction.guildId!, user.id, reason, interaction.user.id);
-      await interaction.reply({ content: `${user.toString()} can no longer open carry tickets.\nReason: \`${reason}\``, ephemeral: true });
+      await replyNotice(interaction, "User Blacklisted", `${user.toString()} can no longer open carry tickets.\nReason: \`${reason}\``, 0xff0000);
       return;
     }
     case "ticket-unblacklist": {
       const user = interaction.options.getUser("user", true);
       const entry = await db.getTicketBlacklistEntry(interaction.guildId!, user.id).catch(() => null);
       await db.removeTicketBlacklist(interaction.guildId!, user.id);
-      await interaction.reply({ content: entry ? `${user.toString()} can open carry tickets again.` : `${user.toString()} was not blacklisted.`, ephemeral: true });
+      await replyNotice(interaction, entry ? "User Unblacklisted" : "No Blacklist Entry", entry ? `${user.toString()} can open carry tickets again.` : `${user.toString()} was not blacklisted.`, entry ? 0x4ade80 : 0xfee75c);
       return;
     }
     case "helper-stats": {
@@ -755,7 +763,7 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
       const helper = interaction.options.getUser("helper", true);
       const stats = await db.getHelperStats(interaction.guildId!, helper.id).catch(() => null);
       if (!stats || stats.total === 0) {
-        await interaction.editReply(`No vouches found for ${helper.toString()} yet.`);
+        await interaction.editReply(noticePayload("No Stats Found", `No vouches found for ${helper.toString()} yet.`, 0xff0000) as any);
         return;
       }
       const leaderboard = await db.getLeaderboard(interaction.guildId!, 50).catch(() => []);
@@ -770,7 +778,7 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
         fiveStarRate: stats.fiveStarRate,
         topGame: stats.topGame,
       });
-      await interaction.editReply({ files: [new AttachmentBuilder(imageBuffer, { name: `helper-profile-${helper.id}.png` })] });
+      await interaction.editReply({ ...(noticePayload("Helper Profile", `Profile card for ${helper.toString()}.`, 0x5865f2) as any), files: [new AttachmentBuilder(imageBuffer, { name: `helper-profile-${helper.id}.png` })] });
       return;
     }
     case "leaderboard": {
@@ -779,7 +787,7 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
       const limit = limitRaw < 3 || limitRaw > 10 ? 10 : limitRaw;
       const leaderboard = await db.getLeaderboard(interaction.guildId!, limit).catch(() => []);
       if (!leaderboard.length) {
-        await interaction.editReply("No helper data found yet. Submit vouches first.");
+        await interaction.editReply(noticePayload("No Leaderboard Data", "No helper data found yet. Submit vouches first.", 0xff0000) as any);
         return;
       }
       const entries = await Promise.all(
@@ -797,7 +805,7 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
         }),
       );
       const imageBuffer = await buildLeaderboardCardWithAvatars({ guildName: interaction.guild!.name, entries });
-      await interaction.editReply({ files: [new AttachmentBuilder(imageBuffer, { name: `leaderboard-${Math.floor(Date.now() / 1000)}.png` })] });
+      await interaction.editReply({ ...(noticePayload("Helper Leaderboard", `Leaderboard for ${interaction.guild!.name}.`, 0x5865f2) as any), files: [new AttachmentBuilder(imageBuffer, { name: `leaderboard-${Math.floor(Date.now() / 1000)}.png` })] });
       return;
     }
     case "daily-messages": {
@@ -805,7 +813,7 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
       const dayKey = new Date().toISOString().slice(0, 10);
       const count = await db.getDailyMessageCount(interaction.guildId!, user.id, dayKey).catch(() => 0);
       const remaining = Math.max(0, DAILY_MESSAGE_TARGET - count);
-      await interaction.reply({ content: `Stats for <@${user.id}> today\nCurrent Count: **${count}** / ${DAILY_MESSAGE_TARGET}\nRemaining: **${remaining}**\nDate: \`${dayKey}\``, ephemeral: true });
+      await replyNotice(interaction, "Daily Message Progress", `Stats for <@${user.id}> today\nCurrent Count: **${count}** / ${DAILY_MESSAGE_TARGET}\nRemaining: **${remaining}**\nDate: \`${dayKey}\``, 0x5865f2);
       return;
     }
     case "vouch_give": {
@@ -814,12 +822,12 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
       const rating = interaction.options.getInteger("rating", true);
       const message = interaction.options.getString("message", true).trim();
       if (helper.user.bot) {
-        await interaction.reply({ content: "You cannot award a vouch to a bot.", ephemeral: true });
+        await replyNotice(interaction, "Invalid Helper", "You cannot award a vouch to a bot.", 0xff0000);
         return;
       }
       await interaction.deferReply({ ephemeral: true });
       const { targetChannel, gameLabel } = await createManualVouchPost(interaction, helper, game, rating, message);
-      await interaction.editReply(`Manual vouch posted in ${targetChannel.toString()} for ${helper.toString()} (${gameLabel}, ${rating}/5).`);
+      await interaction.editReply(noticePayload("Manual Vouch Posted", `Manual vouch posted in ${targetChannel.toString()} for ${helper.toString()} (${gameLabel}, ${rating}/5).`, 0x4ade80) as any);
       return;
     }
     case "get-carry-emoji-env": {
@@ -836,7 +844,7 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
         `EMOJI_SERVICE_BL=${emojis.get("serviceBl")?.embed ?? ""}`,
         `EMOJI_SERVICE_SP=${emojis.get("serviceSp")?.embed ?? ""}`,
       ];
-      await interaction.editReply(`\`\`\`env\n${lines.join("\n")}\n\`\`\``);
+      await interaction.editReply(noticePayload("Carry Emoji Env", `\`\`\`env\n${lines.join("\n")}\n\`\`\``, 0x5865f2) as any);
       return;
     }
     case "cleanup-all-tickets": {
@@ -849,7 +857,7 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
         ticketState.delete(channel.id);
         count += 1;
       }
-      await interaction.editReply(`Successfully deleted \`${count}\` ticket channels.`);
+      await interaction.editReply(noticePayload("Cleanup Complete", `Successfully deleted \`${count}\` ticket channels.`, 0x4ade80) as any);
       return;
     }
     case "purge_all_tickets": {
@@ -862,43 +870,43 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
         ticketState.delete(channel.id);
         deleted += 1;
       }
-      await interaction.editReply(`Purged \`${deleted}\` ticket channels.`);
+      await interaction.editReply(noticePayload("Purge Complete", `Purged \`${deleted}\` ticket channels.`, 0x4ade80) as any);
       return;
     }
     case "purge_name_ticket": {
       const channel = interaction.options.getChannel("channel", true);
       if (!(channel instanceof TextChannel) || !isTicketChannel(channel)) {
-        await interaction.reply({ content: "Selected channel is not recognized as a ticket channel.", ephemeral: true });
+        await replyNotice(interaction, "Invalid Ticket Channel", "Selected channel is not recognized as a ticket channel.", 0xff0000);
         return;
       }
       await db.closeTicket(channel.id, interaction.user.id).catch(() => undefined);
       await channel.delete(`Ticket purge by ${interaction.user.tag}`).catch((error) => console.error(error));
       ticketState.delete(channel.id);
-      await interaction.reply({ content: "Ticket channel deleted.", ephemeral: true });
+      await replyNotice(interaction, "Ticket Deleted", "Ticket channel deleted.", 0x4ade80);
       return;
     }
     case "user_ticket_remove": {
       const target = interaction.options.getChannel("channel", false) ?? interaction.channel;
       if (!(target instanceof TextChannel) || !isTicketChannel(target)) {
-        await interaction.reply({ content: "This is not a ticket channel.", ephemeral: true });
+        await replyNotice(interaction, "Invalid Ticket Channel", "This is not a ticket channel.", 0xff0000);
         return;
       }
       const { ownerId } = await getTicketOwnerId(target);
       const canForce = canCloseAnyTicket(member) || Boolean(member?.permissions.has("Administrator")) || isOwner(interaction.user.id);
       if (interaction.user.id !== ownerId && !canForce) {
-        await interaction.reply({ content: "You can only delete your own ticket channel.", ephemeral: true });
+        await replyNotice(interaction, "Permission Denied", "You can only delete your own ticket channel.", 0xff0000);
         return;
       }
       await closeTicketAndNotify(target, interaction.guild!, interaction.user.id, interaction.user.id);
       await target.delete(`Ticket removed by ${interaction.user.tag}`);
-      await interaction.reply({ content: "Ticket channel deleted.", ephemeral: true });
+      await replyNotice(interaction, "Ticket Deleted", "Ticket channel deleted.", 0x4ade80);
       return;
     }
     case "reset-daily-messages":
-      await interaction.reply({ content: "Daily message stats reset (logic applied to current day).", ephemeral: true });
+      await replyNotice(interaction, "Reset Triggered", "Daily message stats reset (logic applied to current day).", 0x4ade80);
       return;
     default:
-      await interaction.reply({ content: "Unknown command.", ephemeral: true });
+      await replyNotice(interaction, "Unknown Command", "Unknown command.", 0xff0000);
   }
 }
 
@@ -932,7 +940,7 @@ async function runLoops() {
         continue;
       }
       if (!row.claimed_by) continue;
-      await channel.send(`<@${row.claimed_by}> reminder: please answer this carry ticket or unclaim it so someone else can take it.`).catch(() => undefined);
+      await sendNotice(channel, "Claim Reminder", `<@${row.claimed_by}> reminder: please answer this carry ticket or unclaim it so someone else can take it.`, 0xfee75c).catch(() => undefined);
       await db.markTicketReminderSent(channel.id).catch(() => undefined);
     }
   }, 5 * 60_000);
@@ -942,7 +950,7 @@ async function runLoops() {
     for (const [userId, data] of cooldownReminders.entries()) {
       if (data.endsAt.getTime() > now) continue;
       const user = await client.users.fetch(userId).catch(() => null);
-      await user?.send("Your Rune carry cooldown has ended. You can open a new ticket now.").catch(() => undefined);
+      if (user) await sendNotice(user, "Cooldown Ended", "Your Rune carry cooldown has ended. You can open a new ticket now.", 0x4ade80).catch(() => undefined);
       clearCooldownReminder(userId);
     }
   }, 30_000);
