@@ -12,6 +12,7 @@ export function env() {
     boosterRoleId: process.env.BOOSTER_ROLE_ID ?? "",
     logChannelId: process.env.LOG_CHANNEL_ID ?? "",
     vouchChannelId: process.env.VOUCH_CHANNEL_ID ?? "",
+    vouchLogChannelId: process.env.VOUCH_LOG_CHANNEL_ID ?? "",
     highlightChannelId: process.env.HIGHLIGHT_CHANNEL_ID ?? "",
     defaultTicketCategoryId: process.env.DEFAULT_TICKET_CATEGORY_ID ?? "",
     ticketCategories: {

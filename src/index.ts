@@ -227,6 +227,12 @@ async function sendLog(guild: Guild, text: string) {
   await sendNotice(channel, "System Log", text, 0x7a92ff).catch(() => undefined);
 }
 
+async function sendVouchLog(guild: Guild, text: string) {
+  const channel = await getConfiguredTextChannel(guild, cfg.vouchLogChannelId || cfg.logChannelId, ["vouch-log", "vouch", "logs"]);
+  if (!channel) return;
+  await sendNotice(channel, "Vouch Log", text, 0xff5f7e).catch(() => undefined);
+}
+
 async function closeTicketAndNotify(channel: TextChannel, guild: Guild, closedBy: string, actorId: string) {
   const ticket = await fetchTicket(channel.id);
   const shouldRequestVouch = Boolean(ticket && ticket.claimedBy && !ticket.vouched);
@@ -307,7 +313,7 @@ async function createManualVouchPost(interaction: ChatInputCommandInteraction, h
     channel_id: targetChannel.id,
     created_at: new Date().toISOString(),
   }).catch((error) => console.error("[vouch] manual save failed", error));
-  await sendLog(interaction.guild!, `Manual vouch submitted by <@${interaction.user.id}> for ${helper.toString()} (${rating}/5)`);
+  await sendVouchLog(interaction.guild!, `Manual vouch submitted by <@${interaction.user.id}> for ${helper.toString()} (${rating}/5)`);
   return { targetChannel, gameLabel: GAME_LABEL[gameKey] };
 }
 
@@ -539,7 +545,7 @@ async function handleVouchModal(interaction: Interaction<CacheType>) {
   await interaction.editReply({
     files: [new AttachmentBuilder(postVouchImage, { name: `post-vouch-snapshot-${helperId}.png` })],
   });
-  await sendLog(interaction.guild, `Vouch submitted by <@${interaction.user.id}> for <@${helperId}> (${rating}/5)`);
+  await sendVouchLog(interaction.guild, `Vouch submitted by <@${interaction.user.id}> for <@${helperId}> (${rating}/5)`);
   if (inTicket && interaction.channel instanceof TextChannel) {
     setTimeout(() => {
       interaction.channel?.delete("Carry request completed & vouched").catch(() => undefined);
