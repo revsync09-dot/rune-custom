@@ -389,7 +389,11 @@ async function handleCarryModal(interaction: Interaction<CacheType>) {
   if (helperRole && helperRole.id !== staffRoleId) {
     overwrites.push({ id: helperRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
   }
+  const configuredCategoryId = ticketCategoryId(gameKey);
   const category = await findTicketCategory(interaction.guild, gameKey);
+  if (configuredCategoryId && !category) {
+    console.error(`[ticket] configured category ${configuredCategoryId} for ${gameKey} was not found in guild ${interaction.guild.id}`);
+  }
   const createdChannel = await interaction.guild.channels.create({
     name: channelName,
     type: ChannelType.GuildText,
@@ -402,7 +406,10 @@ async function handleCarryModal(interaction: Interaction<CacheType>) {
   });
   if (!(createdChannel instanceof TextChannel)) return true;
   if (category && createdChannel.parentId !== category.id) {
-    await createdChannel.setParent(category.id).catch((error) => console.error("[ticket] failed to move channel to category", error));
+    await createdChannel.setParent(category.id, { lockPermissions: false }).catch((error) => console.error(`[ticket] failed to move channel ${createdChannel.id} to category ${category.id}`, error));
+  }
+  if (category) {
+    console.log(`[ticket] channel ${createdChannel.id} assigned to category ${category.id} for ${gameKey}`);
   }
 
   const ticket: TicketViewModel = {
