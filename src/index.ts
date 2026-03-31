@@ -456,6 +456,7 @@ async function handleCarryModal(interaction: Interaction<CacheType>) {
 
 async function handleVouchModal(interaction: Interaction<CacheType>) {
   if (!interaction.isModalSubmit() || !interaction.customId.startsWith(VOUCH_MODAL) || !interaction.guild) return false;
+  await interaction.deferReply({ ephemeral: true });
   const parts = interaction.customId.split(":");
   const forcedHelperId = parts[2] || null;
   const forcedGameKey = parseGameKey(parts[3] ?? "");
@@ -465,18 +466,17 @@ async function handleVouchModal(interaction: Interaction<CacheType>) {
   const message = interaction.fields.getTextInputValue("message").trim();
 
   if (!helperId) {
-    await replyNotice(interaction, "Invalid Helper", "Enter a valid helper mention or ID.", 0xff0000);
+    await interaction.editReply(noticePayload("Invalid Helper", "Enter a valid helper mention or ID.", 0xff0000) as any);
     return true;
   }
   if (!gameKey) {
-    await replyNotice(interaction, "Invalid Service", "Service must be one of: ALS, AG, AC, UTD, AV, AO, BL, SP.", 0xff0000);
+    await interaction.editReply(noticePayload("Invalid Service", "Service must be one of: ALS, AG, AC, UTD, AV, AO, BL, SP.", 0xff0000) as any);
     return true;
   }
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-    await replyNotice(interaction, "Invalid Rating", "Rating must be a whole number between 1 and 5.", 0xff0000);
+    await interaction.editReply(noticePayload("Invalid Rating", "Rating must be a whole number between 1 and 5.", 0xff0000) as any);
     return true;
   }
-  await interaction.deferReply({ ephemeral: true });
   const helperUser = await client.users.fetch(helperId).catch(() => null);
   if (!helperUser) {
     await interaction.editReply(noticePayload("Helper Not Found", "I could not find that helper user.", 0xff0000) as any);
@@ -565,6 +565,10 @@ async function handleVouchModal(interaction: Interaction<CacheType>) {
 
 async function handleButton(interaction: Interaction<CacheType>) {
   if (!interaction.isButton() || !interaction.guild || !(interaction.channel instanceof TextChannel)) return false;
+  if (interaction.customId === VOUCH_BUTTON) {
+    await interaction.showModal(makeVouchModal());
+    return true;
+  }
   const ticket = await fetchTicket(interaction.channelId);
   const member = interaction.member instanceof GuildMember ? interaction.member : null;
 
@@ -642,12 +646,6 @@ async function handleButton(interaction: Interaction<CacheType>) {
     }
     return true;
   }
-
-  if (interaction.customId === VOUCH_BUTTON) {
-    await interaction.showModal(makeVouchModal());
-    return true;
-  }
-
   return false;
 }
 
