@@ -172,16 +172,16 @@ export async function buildVouchCard(data: {
   ctx.font = '400 24px "Inter"';
   wrapText(ctx, data.message, 82, 516, 1018, 30, 4);
 
-  fillRoundedRect(ctx, 876, 168, 252, 148, 24, "#101728");
+  fillRoundedRect(ctx, 876, 168, 252, 156, 24, "#101728");
   ctx.fillStyle = "#69d6ff";
   ctx.font = '400 18px "Inter"';
-  ctx.fillText("Total vouches", 896, 196);
+  ctx.fillText("Total vouches", 896, 194);
   ctx.fillStyle = "#f5f7ff";
-  ctx.font = '700 30px "Space Grotesk"';
-  ctx.fillText(String(data.stats.total), 896, 234);
+  ctx.font = '700 24px "Space Grotesk"';
+  ctx.fillText(String(data.stats.total), 896, 232);
   ctx.fillStyle = "#98b2d8";
   ctx.font = '400 18px "Inter"';
-  ctx.fillText(`Top game: ${data.stats.topGame}`, 896, 270);
+  ctx.fillText(`Top game: ${data.stats.topGame}`, 896, 268);
   ctx.fillText("Trusted helper profile", 896, 296);
 
   return Buffer.from(await canvas.encode("png"));
