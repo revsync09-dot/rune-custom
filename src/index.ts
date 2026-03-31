@@ -47,6 +47,7 @@ import {
   canUseAdminCommands,
   extractTicketMeta,
   findGameRoleInGuild,
+  findTicketCategory,
   formatDuration,
   getCarryEmojis,
   getConfiguredTextChannel,
@@ -395,12 +396,12 @@ async function handleCarryModal(interaction: Interaction<CacheType>) {
   if (helperRole && helperRole.id !== staffRoleId) {
     overwrites.push({ id: helperRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
   }
-  const categoryId = ticketCategoryId(gameKey);
+  const category = await findTicketCategory(interaction.guild, gameKey);
   const createdChannel = await interaction.guild.channels.create({
     name: channelName,
     type: ChannelType.GuildText,
     topic: `carry:${interaction.user.id}:${gameKey}`,
-    parent: categoryId ?? undefined,
+    parent: category?.id,
     permissionOverwrites: overwrites,
   }).catch(async (error) => {
     await interaction.editReply(noticePayload("Ticket Creation Failed", `Failed to create the ticket channel: ${error}`, 0xff0000) as any);

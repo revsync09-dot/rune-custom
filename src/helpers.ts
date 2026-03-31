@@ -1,4 +1,5 @@
 import {
+  CategoryChannel,
   ChannelType,
   DiscordAPIError,
   Guild,
@@ -140,6 +141,18 @@ export function helperRoleMention(gameKey: GameKey): string {
 export function ticketCategoryId(gameKey: GameKey): string | null {
   const cfg = env();
   return normalizeSnowflake(cfg.ticketCategories[gameKey]) ?? normalizeSnowflake(cfg.defaultTicketCategoryId);
+}
+
+export async function findTicketCategory(guild: Guild | null, gameKey: GameKey) {
+  if (!guild) return null;
+  const categoryId = ticketCategoryId(gameKey);
+  if (categoryId) {
+    const channel = guild.channels.cache.get(categoryId) ?? (await guild.channels.fetch(categoryId).catch(() => null));
+    if (channel?.type === ChannelType.GuildCategory) {
+      return channel as CategoryChannel;
+    }
+  }
+  return null;
 }
 
 export function extractTicketMeta(topic: string | null | undefined): { ownerId?: string; gameKey?: GameKey } {
