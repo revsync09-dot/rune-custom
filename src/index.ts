@@ -401,6 +401,9 @@ async function handleCarryModal(interaction: Interaction<CacheType>) {
     return null;
   });
   if (!(createdChannel instanceof TextChannel)) return true;
+  if (category && createdChannel.parentId !== category.id) {
+    await createdChannel.setParent(category.id).catch((error) => console.error("[ticket] failed to move channel to category", error));
+  }
 
   const ticket: TicketViewModel = {
     userId: interaction.user.id,
