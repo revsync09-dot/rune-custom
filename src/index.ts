@@ -391,25 +391,30 @@ async function handleCarryModal(interaction: Interaction<CacheType>) {
   }
   const configuredCategoryId = ticketCategoryId(gameKey);
   const category = await findTicketCategory(interaction.guild, gameKey);
+  if (configuredCategoryId) {
+    console.log(`[ticket] using configured category ${configuredCategoryId} for ${gameKey} in guild ${interaction.guild.id}`);
+  } else {
+    console.error(`[ticket] no configured category found for ${gameKey} in guild ${interaction.guild.id}`);
+  }
   if (configuredCategoryId && !category) {
-    console.error(`[ticket] configured category ${configuredCategoryId} for ${gameKey} was not found in guild ${interaction.guild.id}`);
+    console.error(`[ticket] configured category ${configuredCategoryId} for ${gameKey} was not resolved via fetch/cache`);
   }
   const createdChannel = await interaction.guild.channels.create({
     name: channelName,
     type: ChannelType.GuildText,
     topic: `carry:${interaction.user.id}:${gameKey}`,
-    parent: category?.id,
+    parent: configuredCategoryId ?? undefined,
     permissionOverwrites: overwrites,
   }).catch(async (error) => {
     await interaction.editReply(noticePayload("Ticket Creation Failed", `Failed to create the ticket channel: ${error}`, 0xff0000) as any);
     return null;
   });
   if (!(createdChannel instanceof TextChannel)) return true;
-  if (category && createdChannel.parentId !== category.id) {
-    await createdChannel.setParent(category.id, { lockPermissions: false }).catch((error) => console.error(`[ticket] failed to move channel ${createdChannel.id} to category ${category.id}`, error));
+  if (configuredCategoryId && createdChannel.parentId !== configuredCategoryId) {
+    await createdChannel.setParent(configuredCategoryId, { lockPermissions: false }).catch((error) => console.error(`[ticket] failed to move channel ${createdChannel.id} to category ${configuredCategoryId}`, error));
   }
-  if (category) {
-    console.log(`[ticket] channel ${createdChannel.id} assigned to category ${category.id} for ${gameKey}`);
+  if (configuredCategoryId) {
+    console.log(`[ticket] channel ${createdChannel.id} assigned to category ${configuredCategoryId} for ${gameKey}`);
   }
 
   const ticket: TicketViewModel = {
