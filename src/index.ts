@@ -389,6 +389,9 @@ async function handleCarryModal(interaction: Interaction<CacheType>) {
   if (helperRole && helperRole.id !== staffRoleId) {
     overwrites.push({ id: helperRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
   }
+  // Force-refresh channels cache so the category is resolvable
+  await interaction.guild.channels.fetch().catch(() => undefined);
+
   const configuredCategoryId = ticketCategoryId(gameKey);
   const category = await findTicketCategory(interaction.guild, gameKey);
   if (configuredCategoryId) {
@@ -403,7 +406,7 @@ async function handleCarryModal(interaction: Interaction<CacheType>) {
     name: channelName,
     type: ChannelType.GuildText,
     topic: `carry:${interaction.user.id}:${gameKey}`,
-    parent: configuredCategoryId ?? undefined,
+    parent: category ?? configuredCategoryId ?? undefined,
     permissionOverwrites: overwrites,
   }).catch(async (error) => {
     await interaction.editReply(noticePayload("Ticket Creation Failed", `Failed to create the ticket channel: ${error}`, 0xff0000) as any);
@@ -825,7 +828,7 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
         fiveStarRate: stats.fiveStarRate,
         topGame: stats.topGame,
       });
-      await interaction.editReply({ ...(noticePayload("Helper Profile", `Profile card for ${helper.toString()}.`, 0x5865f2) as any), files: [new AttachmentBuilder(imageBuffer, { name: `helper-profile-${helper.id}.png` })] });
+      await interaction.editReply({ files: [new AttachmentBuilder(imageBuffer, { name: `helper-profile-${helper.id}.png` })] });
       return;
     }
     case "leaderboard": {
@@ -852,7 +855,7 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
         }),
       );
       const imageBuffer = await buildLeaderboardCardWithAvatars({ guildName: interaction.guild!.name, entries });
-      await interaction.editReply({ ...(noticePayload("Helper Leaderboard", `Leaderboard for ${interaction.guild!.name}.`, 0x5865f2) as any), files: [new AttachmentBuilder(imageBuffer, { name: `leaderboard-${Math.floor(Date.now() / 1000)}.png` })] });
+      await interaction.editReply({ files: [new AttachmentBuilder(imageBuffer, { name: `leaderboard-${Math.floor(Date.now() / 1000)}.png` })] });
       return;
     }
     case "recent-vouches": {
