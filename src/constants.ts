@@ -23,7 +23,7 @@ export const FULL_ACCESS_ROLE_IDS = new Set(["765924526512537630"]);
 export const DAILY_MESSAGE_TARGET = 30;
 export const CLAIM_RESPONSE_REMINDER_MINUTES = 10;
 export const UNANSWERED_TICKET_CLOSE_MINUTES = 30;
-export const VOUCH_COOLDOWN_HOURS = 5;
+export const VOUCH_COOLDOWN_HOURS = 1;
 export const VOUCH_REMINDER_HOURS = [1, 3] as const;
 
 export const RUNE_GUILD_ID = "1473028571932135638";
