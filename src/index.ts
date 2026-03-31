@@ -549,11 +549,8 @@ async function handleVouchModal(interaction: Interaction<CacheType>) {
   }
 
   const inTicket = interaction.channel instanceof TextChannel && Boolean(extractTicketMeta(interaction.channel.topic ?? "").ownerId);
-  const postVouchSnapshot = await getHelperSnapshotData(interaction.guild.id, helperId);
-  const postVouchImage = await buildHelperSnapshotCard(postVouchSnapshot);
-  await interaction.editReply({
-    files: [new AttachmentBuilder(postVouchImage, { name: `post-vouch-snapshot-${helperId}.png` })],
-  });
+  await sendHelperSnapshotDm(interaction.user.id, interaction.guild.id, helperId);
+  await interaction.deleteReply().catch(() => undefined);
   if (inTicket && interaction.channel instanceof TextChannel) {
     setTimeout(() => {
       interaction.channel?.delete("Carry request completed & vouched").catch(() => undefined);
