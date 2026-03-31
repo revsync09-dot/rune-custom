@@ -4,6 +4,7 @@ import path from "node:path";
 type Ctx = SKRSContext2D;
 
 let fontsRegistered = false;
+const RUNE_FOOTER = "Rune only for you | Developed by Red_thz";
 
 function registerCanvasFonts() {
   if (fontsRegistered) return;
@@ -184,6 +185,10 @@ export async function buildVouchCard(data: {
   ctx.fillText(`Top game: ${data.stats.topGame}`, 896, 268);
   ctx.fillText("Trusted helper profile", 896, 296);
 
+  ctx.fillStyle = "#86a6ce";
+  ctx.font = '400 16px "Inter"';
+  ctx.fillText(RUNE_FOOTER, 56, 592);
+
   return Buffer.from(await canvas.encode("png"));
 }
 
@@ -234,6 +239,9 @@ export async function buildHelperProfileCard(data: {
   ctx.font = '400 24px "Inter"';
   ctx.fillText(`${data.helperTag} is ranked ${data.rankLabel}`, 72, 390);
   ctx.fillText(`with ${data.total} total vouches recorded.`, 72, 422);
+  ctx.fillStyle = "#86a6ce";
+  ctx.font = '400 16px "Inter"';
+  ctx.fillText(RUNE_FOOTER, 50, 470);
 
   return Buffer.from(await canvas.encode("png"));
 }
@@ -267,6 +275,10 @@ export async function buildLeaderboardCardWithAvatars(data: {
     ctx.fillText(`${entry.rankLabel} | ${entry.topGame}`, 122, y + 60);
     ctx.fillText(`Avg ${entry.average.toFixed(2)} | ${entry.total} vouches | ${entry.fiveStarRate.toFixed(1)}% 5-star`, 660, y + 46);
   }
+
+  ctx.fillStyle = "#86a6ce";
+  ctx.font = '400 16px "Inter"';
+  ctx.fillText(RUNE_FOOTER, 34, canvas.height - 22);
 
   return Buffer.from(await canvas.encode("png"));
 }
@@ -343,6 +355,10 @@ export async function buildHelperSnapshotCard(data: {
     const snippet = entry.message.length > 105 ? `${entry.message.slice(0, 102)}...` : entry.message;
     wrapText(ctx, snippet, 636, y + 56, 442, 22, 2);
   });
+
+  ctx.fillStyle = "#86a6ce";
+  ctx.font = '400 16px "Inter"';
+  ctx.fillText(RUNE_FOOTER, 54, 676);
 
   return Buffer.from(await canvas.encode("png"));
 }

@@ -26,6 +26,8 @@ import {
 } from "./constants.js";
 import type { GameKey, TicketViewModel } from "./types.js";
 
+const RUNE_FOOTER = "Rune only for you | Developed by Red_thz";
+
 export function createV2Message(components: APIMessageTopLevelComponent[] | ContainerBuilder[]) {
   return { flags: MessageFlags.IsComponentsV2 as any, components } as any;
 }
@@ -62,6 +64,8 @@ export function buildCarryPanel(
             "",
             "**Support Games**",
             supportedGamesText,
+            "",
+            `*${RUNE_FOOTER}*`,
           ].join("\n")
         : [
             `# ${guildName.toUpperCase()} | Carry Requests`,
@@ -73,6 +77,8 @@ export function buildCarryPanel(
             "",
             "**Supported Games**",
             supportedGamesText,
+            "",
+            `*${RUNE_FOOTER}*`,
           ].join("\n"),
     ),
   );
@@ -91,6 +97,7 @@ export function buildVouchPanel(guildName: string) {
         `# ${guildName} Vouch System`,
         "Drop your feedback after a carry and get featured in our vouch feed.",
         "Press the button below, fill out the form, and your vouch card is generated instantly.",
+        `*${RUNE_FOOTER}*`,
       ].join("\n\n"),
     ),
   );
@@ -116,6 +123,8 @@ export function buildTicketMessage(ticket: TicketViewModel) {
         "",
         "**Request:**",
         ticket.request,
+        "",
+        `*${RUNE_FOOTER}*`,
       ].join("\n"),
     ),
   );
@@ -147,6 +156,8 @@ export function buildHighlightMessage(helperMention: string, clientLabel: string
         `**Client:** ${clientLabel}`,
         `**Service:** **${gameLabel}**`,
         `**Type:** ${awardedByStaff ? "Staff Awarded" : "Community Vouch"}`,
+        "",
+        `*${RUNE_FOOTER}*`,
       ].join("\n"),
     ),
   );
@@ -165,7 +176,7 @@ export function buildSupportedGamesText(keys: GameKey[]): string {
 export function buildNotice(title: string, description: string, accentColor = 0x5865f2) {
   const container = new ContainerBuilder().setAccentColor(accentColor);
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent([`# ${title}`, description].join("\n\n")),
+    new TextDisplayBuilder().setContent([`# ${title}`, description, `*${RUNE_FOOTER}*`].join("\n\n")),
   );
   return createV2Message([container]);
 }
