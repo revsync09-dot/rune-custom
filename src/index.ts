@@ -293,7 +293,7 @@ async function createManualVouchPost(interaction: ChatInputCommandInteraction, h
       await highlightChannel.send({
         ...buildHighlightMessage(helper.toString(), `Staff: <@${interaction.user.id}>`, GAME_LABEL[gameKey], rating, interaction.guild!.name, sent.url, true),
         files: [new AttachmentBuilder(imageBuffer, { name: filename })],
-      }).catch((error) => console.error("[highlight] manual post failed", error));
+      }).catch((error: unknown) => console.error("[highlight] manual post failed", error));
     }
   }
   await db.createVouch({
@@ -504,7 +504,7 @@ async function handleVouchModal(interaction: Interaction<CacheType>) {
       await highlightChannel.send({
         ...buildHighlightMessage(`<@${helperId}>`, `<@${interaction.user.id}>`, GAME_LABEL[gameKey], rating, interaction.guild.name, sent.url, false),
         files: [new AttachmentBuilder(imageBuffer, { name: filename })],
-      }).catch((error) => console.error("[highlight] failed", error));
+      }).catch((error: unknown) => console.error("[highlight] failed", error));
     }
   }
 
