@@ -228,8 +228,14 @@ async function getTicketGateState(guild: Guild, userId: string, member: GuildMem
 }
 
 async function sendLog(guild: Guild, text: string) {
-  const channel = await getConfiguredTextChannel(guild, cfg.logChannelId, ["log", "bot-log", "system-log"]);
-  if (!channel) return;
+  // Resolve ONLY by configured LOG_CHANNEL_ID — no name-based fallback to avoid
+  // accidentally matching channels like "vouch-log".
+  const logChannelId = normalizeSnowflake(cfg.logChannelId);
+  if (!logChannelId) return;
+  const channel =
+    (guild.channels.cache.get(logChannelId) as TextChannel | undefined) ??
+    ((await guild.channels.fetch(logChannelId).catch(() => null)) as TextChannel | null);
+  if (!channel || channel.type !== ChannelType.GuildText) return;
   await sendNotice(channel, "System Log", text, 0x7a92ff).catch(() => undefined);
 }
 
