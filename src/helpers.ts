@@ -1,4 +1,5 @@
 import {
+  AnnouncementChannel,
   ChannelType,
   DiscordAPIError,
   Guild,
@@ -232,12 +233,16 @@ export async function getConfiguredTextChannel(guild: Guild | null, channelIdVal
   const channelId = normalizeSnowflake(channelIdValue);
   if (channelId) {
     const channel = guild.channels.cache.get(channelId) ?? (await guild.channels.fetch(channelId).catch(() => null));
-    if (channel?.type === ChannelType.GuildText) return channel as TextChannel;
+    if (channel?.type === ChannelType.GuildText || channel?.type === ChannelType.GuildAnnouncement) {
+      return channel as TextChannel | AnnouncementChannel;
+    }
   }
   return (
-    guild.channels.cache.find((channel) => channel.type === ChannelType.GuildText && nameKeywords.some((keyword) => channel.name.toLowerCase().includes(keyword.toLowerCase()))) as
-      | TextChannel
-      | undefined
+    guild.channels.cache.find(
+      (channel) =>
+        (channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement) &&
+        nameKeywords.some((keyword) => channel.name.toLowerCase().includes(keyword.toLowerCase())),
+    ) as TextChannel | AnnouncementChannel | undefined
   ) ?? null;
 }
 

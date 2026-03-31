@@ -284,12 +284,12 @@ async function createManualVouchPost(interaction: ChatInputCommandInteraction, h
   });
 
   const targetChannel = await getConfiguredTextChannel(interaction.guild!, cfg.vouchChannelId, ["vouch", "vouches", "feedback"]);
-  if (!(targetChannel instanceof TextChannel)) throw new Error("Vouch channel is not configured correctly or does not exist.");
+  if (!targetChannel) throw new Error("Vouch channel is not configured correctly or does not exist.");
   const filename = `vouch-manual-${helper.id}-${Math.floor(Date.now() / 1000)}.png`;
   const sent = await targetChannel.send({ files: [new AttachmentBuilder(imageBuffer, { name: filename })] });
   if (rating === 5) {
     const highlightChannel = await getConfiguredTextChannel(interaction.guild!, cfg.highlightChannelId, ["highlight", "highlights"]);
-    if (highlightChannel instanceof TextChannel) {
+    if (highlightChannel) {
       await highlightChannel.send({
         ...buildHighlightMessage(helper.toString(), `Staff: <@${interaction.user.id}>`, GAME_LABEL[gameKey], rating, interaction.guild!.name, sent.url, true),
         files: [new AttachmentBuilder(imageBuffer, { name: filename })],
@@ -491,7 +491,7 @@ async function handleVouchModal(interaction: Interaction<CacheType>) {
   });
 
   const targetChannel = await getConfiguredTextChannel(interaction.guild, cfg.vouchChannelId, ["vouch", "vouches", "feedback"]);
-  if (!(targetChannel instanceof TextChannel)) {
+  if (!targetChannel) {
     await interaction.editReply(noticePayload("Vouch Channel Missing", "Vouch channel is not configured correctly or does not exist.", 0xff0000) as any);
     return true;
   }
@@ -500,7 +500,7 @@ async function handleVouchModal(interaction: Interaction<CacheType>) {
 
   if (rating === 5) {
     const highlightChannel = await getConfiguredTextChannel(interaction.guild, cfg.highlightChannelId, ["highlight", "highlights"]);
-    if (highlightChannel instanceof TextChannel) {
+    if (highlightChannel) {
       await highlightChannel.send({
         ...buildHighlightMessage(`<@${helperId}>`, `<@${interaction.user.id}>`, GAME_LABEL[gameKey], rating, interaction.guild.name, sent.url, false),
         files: [new AttachmentBuilder(imageBuffer, { name: filename })],
