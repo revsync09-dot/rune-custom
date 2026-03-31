@@ -353,24 +353,32 @@ export async function getTicketBlacklistEntry(guildId: string, userId: string): 
 
 export async function incrementDailyMessageCount(guildId: string, userId: string, dayKey: string): Promise<number> {
   const now = new Date().toISOString();
-  const { data, error } = await client()
-    .from("daily_message_stats")
-    .select("id, message_count")
-    .eq("guild_id", guildId)
-    .eq("user_id", userId)
-    .eq("day_key", dayKey)
-    .limit(1)
-    .maybeSingle<{ id: string; message_count: number | null }>();
-  if (error) throw error;
+  const loadExisting = async () => {
+    const { data, error } = await client()
+      .from("daily_message_stats")
+      .select("id, message_count")
+      .eq("guild_id", guildId)
+      .eq("user_id", userId)
+      .eq("day_key", dayKey)
+      .limit(1)
+      .maybeSingle<{ id: string; message_count: number | null }>();
+    if (error) throw error;
+    return data;
+  };
 
-  if (data) {
-    const nextCount = Number(data.message_count ?? 0) + 1;
-    const { error: updateError } = await client()
+  const updateExisting = async (rowId: string, currentCount: number | null | undefined) => {
+    const nextCount = Number(currentCount ?? 0) + 1;
+    const { error } = await client()
       .from("daily_message_stats")
       .update({ message_count: nextCount, updated_at: now })
-      .eq("id", data.id);
-    if (updateError) throw updateError;
+      .eq("id", rowId);
+    if (error) throw error;
     return nextCount;
+  };
+
+  const existing = await loadExisting();
+  if (existing) {
+    return updateExisting(existing.id, existing.message_count);
   }
 
   const { error: insertError } = await client().from("daily_message_stats").insert({
@@ -381,8 +389,12 @@ export async function incrementDailyMessageCount(guildId: string, userId: string
     created_at: now,
     updated_at: now,
   });
-  if (insertError) throw insertError;
-  return 1;
+  if (!insertError) return 1;
+  if ((insertError as { code?: string }).code !== "23505") throw insertError;
+
+  const conflicted = await loadExisting();
+  if (!conflicted) throw insertError;
+  return updateExisting(conflicted.id, conflicted.message_count);
 }
 
 export async function getDailyMessageCount(guildId: string, userId: string, dayKey: string): Promise<number> {

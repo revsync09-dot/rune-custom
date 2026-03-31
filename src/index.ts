@@ -138,12 +138,6 @@ async function getHelperSnapshotData(guildId: string, helperId: string) {
   };
 }
 
-async function sendHelperSnapshot(channel: TextChannel, guildId: string, helperId: string) {
-  const snapshot = await getHelperSnapshotData(guildId, helperId);
-  const imageBuffer = await buildHelperSnapshotCard(snapshot);
-  await channel.send({ files: [new AttachmentBuilder(imageBuffer, { name: `helper-snapshot-${helperId}.png` })] }).catch(() => undefined);
-}
-
 async function replyNotice(interaction: ChatInputCommandInteraction | StringSelectMenuInteraction | Interaction<CacheType>, title: string, description: string, accentColor = 0x5865f2, ephemeral = true) {
   const payload = { ...noticePayload(title, description, accentColor), ephemeral } as any;
   try {
@@ -578,7 +572,6 @@ async function handleButton(interaction: Interaction<CacheType>) {
     ticketState.set(interaction.channelId, ticket);
     await db.updateTicketClaimed(interaction.channelId, interaction.user.id);
     await updateTicketMessage(interaction.channel, ticket);
-    await sendHelperSnapshot(interaction.channel, interaction.guild.id, interaction.user.id);
     await replyNotice(interaction, "Ticket Claimed", `Ticket claimed by ${interaction.user.toString()}.`, 0x4ade80);
     await sendLog(interaction.guild, `Claimed: <#${interaction.channelId}> by ${interaction.user.toString()}`);
     return true;
@@ -759,7 +752,6 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
       ticketState.set(interaction.channelId, ticket);
       await db.updateTicketClaimed(interaction.channelId, helper.id);
       await updateTicketMessage(interaction.channel, ticket);
-      await sendHelperSnapshot(interaction.channel, interaction.guildId!, helper.id);
       await replyNotice(interaction, "Ticket Transferred", `Ticket transferred to ${helper.toString()}.`, 0x4ade80);
       await sendLog(interaction.guild!, `Carry request transferred: <#${interaction.channelId}> to ${helper.toString()}`);
       return;
