@@ -1,4 +1,4 @@
-export type GameKey = "ALS" | "AG" | "AC" | "UTD" | "AV" | "AO" | "BL" | "SP";
+export type GameKey = "ALS" | "AG" | "AC" | "UTD" | "AV" | "AO" | "BL" | "SP" | "ARX";
 
 export interface CarryTicketRow {
   guild_id: string;

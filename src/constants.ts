@@ -42,6 +42,7 @@ export const GAME_LABEL: Record<GameKey, string> = {
   AO: "Anime Overload (AO)",
   BL: "Bizarre Lineage (BL)",
   SP: "Sailor Piece (SP)",
+  ARX: "Anime Ranger X (ARX)",
 };
 
 export const HELPER_RANK_TIERS: ReadonlyArray<readonly [number, string]> = [
@@ -62,8 +63,9 @@ export const CARRY_GAMES: ReadonlyArray<readonly [string, GameKey, string]> = [
   ["Anime Overload (AO)", "AO", "Request support for Anime Overload runs."],
   ["Bizarre Lineage (BL)", "BL", "Request support for Bizarre Lineage (JoJo-style Roblox RPG)."],
   ["Sailor Piece (SP)", "SP", "Request support for Sailor Piece runs."],
+  ["Anime Ranger X (ARX)", "ARX", "Request support for Anime Ranger X runs."],
 ];
 
 export const GUILD_GAME_OVERRIDES: Record<string, GameKey[]> = {
-  [RUNE_GUILD_ID]: ["SP", "AC", "ALS", "AV", "AO"],
+  [RUNE_GUILD_ID]: ["SP", "AC", "ALS", "AV", "AO", "ARX"],
 };

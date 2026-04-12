@@ -87,7 +87,8 @@ const commands = [
   new SlashCommandBuilder().setName("cooldown-status").setDescription("Show current carry cooldown status").addUserOption((opt) => opt.setName("user").setDescription("User to check").setRequired(false)),
   new SlashCommandBuilder().setName("ticket-blacklist").setDescription("Block a user from opening carry tickets").addUserOption((opt) => opt.setName("user").setDescription("User to blacklist").setRequired(true)).addStringOption((opt) => opt.setName("reason").setDescription("Reason for the blacklist").setRequired(true)),
   new SlashCommandBuilder().setName("ticket-unblacklist").setDescription("Remove a user from the carry ticket blacklist").addUserOption((opt) => opt.setName("user").setDescription("User to unblacklist").setRequired(true)),
-  new SlashCommandBuilder().setName("helper-stats").setDescription("Show helper profile stats card").addUserOption((opt) => opt.setName("helper").setDescription("Helper user").setRequired(true)),
+  new SlashCommandBuilder().setName("helper-stats").setDescription("Show helper profile stats card").addUserOption((opt) => opt.setName("helper").setDescription("Helper user").setRequired(false)),
+  new SlashCommandBuilder().setName("profile").setDescription("Show your own helper profile stats card"),
   new SlashCommandBuilder().setName("leaderboard").setDescription("Show helper leaderboard card").addIntegerOption((opt) => opt.setName("limit").setDescription("How many helpers to show (max 10)").setRequired(false)),
   new SlashCommandBuilder().setName("recent-vouches").setDescription("Show recent vouches").addUserOption((opt) => opt.setName("helper").setDescription("Optional helper filter").setRequired(false)).addIntegerOption((opt) => opt.setName("limit").setDescription("How many vouches to show").setRequired(false).setMinValue(1).setMaxValue(10)),
   new SlashCommandBuilder().setName("vouch-games").setDescription("Show a helper's vouch breakdown by game").addUserOption((opt) => opt.setName("helper").setDescription("Helper user").setRequired(true)),
@@ -814,9 +815,10 @@ async function handleChatCommand(interaction: ChatInputCommandInteraction) {
       await replyNotice(interaction, entry ? "User Unblacklisted" : "No Blacklist Entry", entry ? `${user.toString()} can open carry tickets again.` : `${user.toString()} was not blacklisted.`, entry ? 0x4ade80 : 0xfee75c);
       return;
     }
-    case "helper-stats": {
+    case "helper-stats":
+    case "profile": {
       await interaction.deferReply();
-      const helper = interaction.options.getUser("helper", true);
+      const helper = interaction.options.getUser("helper", false) ?? interaction.user;
       const stats = await db.getHelperStats(interaction.guildId!, helper.id).catch(() => null);
       if (!stats || stats.total === 0) {
         await interaction.editReply(noticePayload("No Stats Found", `No vouches found for ${helper.toString()} yet.`, 0xff0000) as any);

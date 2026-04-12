@@ -24,6 +24,7 @@ export function env() {
       AO: process.env.TICKET_CATEGORY_AO_ID ?? "",
       BL: process.env.TICKET_CATEGORY_BL_ID ?? "",
       SP: process.env.TICKET_CATEGORY_SP_ID ?? "",
+      ARX: process.env.TICKET_CATEGORY_ARX_ID ?? "",
     },
     helperRoles: {
       ALS: process.env.HELPER_ROLE_ALS_ID ?? process.env.HELPER_ROLE_RAIDS_ID ?? "",
@@ -34,6 +35,7 @@ export function env() {
       AO: process.env.HELPER_ROLE_AO_ID ?? "",
       BL: process.env.HELPER_ROLE_BL_ID ?? "",
       SP: process.env.HELPER_ROLE_SP_ID ?? "",
+      ARX: process.env.HELPER_ROLE_ARX_ID ?? "",
     },
     emojis: {
       bullet: (process.env.EMOJI_BULLET ?? process.env.EMOJI_BULLET_ID ?? "").trim(),
@@ -45,6 +47,7 @@ export function env() {
       serviceAo: (process.env.EMOJI_SERVICE_AO ?? process.env.EMOJI_SERVICE_AO_ID ?? "").trim(),
       serviceBl: (process.env.EMOJI_SERVICE_BL ?? process.env.EMOJI_SERVICE_BL_ID ?? "").trim(),
       serviceSp: (process.env.EMOJI_SERVICE_SP ?? process.env.EMOJI_SERVICE_SP_ID ?? "").trim(),
+      serviceArx: (process.env.EMOJI_SERVICE_ARX ?? process.env.EMOJI_SERVICE_ARX_ID ?? "").trim(),
     },
   };
 }

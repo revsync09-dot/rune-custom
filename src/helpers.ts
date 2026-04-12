@@ -91,6 +91,7 @@ export function getGameOptionKeys(guild: Guild | null) {
     AO: "serviceAo",
     BL: "serviceBl",
     SP: "serviceSp",
+    ARX: "serviceArx",
   };
   return CARRY_GAMES.filter((item) => getEnabledGames(guild).includes(item[1])).map(([label, value, description]) => ({
     label,
@@ -116,6 +117,7 @@ export function findGameRoleInGuild(guild: Guild | null, gameKey: GameKey) {
     AO: ["ao", "anime overload", "overload"],
     BL: ["bl", "bizarre lineage", "lineage"],
     SP: ["sp", "sailor piece", "sailorpiece"],
+    ARX: ["arx", "anime ranger x", "anime ranger"],
   };
   return guild.roles.cache.find((role) => keywords[gameKey].some((keyword) => role.name.toLowerCase().includes(keyword))) ?? null;
 }
@@ -283,6 +285,7 @@ export async function getCarryEmojis(guild: Guild | null) {
     ["serviceAo", cfg.emojis.serviceAo, "🔥"],
     ["serviceBl", cfg.emojis.serviceBl, "⭐"],
     ["serviceSp", cfg.emojis.serviceSp, "🌊"],
+    ["serviceArx", cfg.emojis.serviceArx, "🏹"],
   ] as const;
 
   if (guild?.id === RUNE_GUILD_ID) {
@@ -292,7 +295,7 @@ export async function getCarryEmojis(guild: Guild | null) {
       embed: runeBullet ? String(runeBullet) : `<:emoji:${RUNE_BULLET_EMOJI_ID}>`,
       option: runeBullet ?? { name: "emoji", id: RUNE_BULLET_EMOJI_ID },
     });
-    for (const key of ["serviceAls", "serviceAc", "serviceAv", "serviceAo", "serviceSp"]) {
+    for (const key of ["serviceAls", "serviceAc", "serviceAv", "serviceAo", "serviceSp", "serviceArx"]) {
       result.set(key, {
         embed: runeSelect ? String(runeSelect) : `<:emoji:${RUNE_SELECT_EMOJI_ID}>`,
         option: runeSelect ?? { name: "emoji", id: RUNE_SELECT_EMOJI_ID },
